@@ -29,6 +29,47 @@ export default function AdminModule({
 }: Props) {
   const [activeTab, setActiveTab] = useState<'units' | 'users' | 'import' | 'cloudflare'>('units');
 
+  // --- CLOUDFLARE SYNC FUNCTIONS ---
+  const syncUnitToCloud = async (action: 'create' | 'update' | 'delete', unit: Unit) => {
+    if (!cloudflareConfig.enabled || !cloudflareConfig.workerUrl) return;
+    try {
+      let cleanUrl = cloudflareConfig.workerUrl.trim();
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+      await fetch(`${cleanUrl}/api/units`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-secret': cloudflareConfig.apiSecret,
+        },
+        body: JSON.stringify({ action, unit })
+      });
+    } catch (e) {
+      console.error('Lỗi đồng bộ Đơn vị lên Cloudflare D1:', e);
+    }
+  };
+
+  const syncUserToCloud = async (action: 'create' | 'update' | 'delete', user: User) => {
+    if (!cloudflareConfig.enabled || !cloudflareConfig.workerUrl) return;
+    try {
+      let cleanUrl = cloudflareConfig.workerUrl.trim();
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+      await fetch(`${cleanUrl}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-secret': cloudflareConfig.apiSecret,
+        },
+        body: JSON.stringify({ action, user })
+      });
+    } catch (e) {
+      console.error('Lỗi đồng bộ Người dùng lên Cloudflare D1:', e);
+    }
+  };
+
   // --- 1. HOÀN THIỆN KHAI BÁO ĐƠN VỊ (TREE TREE VIEW) ---
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [editingUnitName, setEditingUnitName] = useState('');
@@ -54,6 +95,11 @@ export default function AdminModule({
     onUnitsChange([...units, newUnit]);
     setNewUnitName('');
     setNewUnitParentId(null);
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      syncUnitToCloud('create', newUnit);
+    }
   };
 
   const handleStartEditUnit = (unit: Unit) => {
@@ -63,8 +109,15 @@ export default function AdminModule({
 
   const handleSaveEditUnit = (id: string) => {
     if (!editingUnitName.trim()) return;
-    onUnitsChange(units.map(u => u.id === id ? { ...u, name: editingUnitName.trim() } : u));
+    const existingParentId = units.find(u => u.id === id)?.parentId || null;
+    const updatedUnit = { id, name: editingUnitName.trim(), parentId: existingParentId };
+    onUnitsChange(units.map(u => u.id === id ? updatedUnit : u));
     setEditingUnitId(null);
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      syncUnitToCloud('update', updatedUnit);
+    }
   };
 
   const handleDeleteUnit = (id: string) => {
@@ -73,7 +126,15 @@ export default function AdminModule({
       return;
     }
     if (confirm('Bạn có chắc muốn xóa đơn vị này? Các đơn vị con cũng sẽ mất liên kết.')) {
+      const unitToDelete = units.find(u => u.id === id);
+      const childUnits = units.filter(u => u.parentId === id);
       onUnitsChange(units.filter(u => u.id !== id && u.parentId !== id));
+
+      // Sync to Cloudflare D1
+      if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+        if (unitToDelete) syncUnitToCloud('delete', unitToDelete);
+        childUnits.forEach(child => syncUnitToCloud('delete', child));
+      }
     }
   };
 
@@ -190,6 +251,12 @@ export default function AdminModule({
     };
 
     onUsersChange([...users, newUser]);
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      syncUserToCloud('create', newUser);
+    }
+
     // Save credentials warning in local store or mock output
     alert(`Người dùng mới được thêm thành công!\nMật khẩu tạm thời mặc định: Vnpt@2026\nYêu cầu đổi mật khẩu trong lần đăng nhập đầu tiên.`);
 
@@ -203,6 +270,16 @@ export default function AdminModule({
 
   const handleResetPassword = (userId: string) => {
     if (confirm('Bạn có chắc muốn đặt lại mật khẩu cho thành viên này về lại giá trị mặc định "Vnpt@2026" ?')) {
+      const matchedUser = users.find(u => u.id === userId);
+      if (matchedUser) {
+        const updatedUser = { ...matchedUser, isFirstLogin: true };
+        onUsersChange(users.map(u => u.id === userId ? updatedUser : u));
+
+        // Sync to Cloudflare D1
+        if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+          syncUserToCloud('update', updatedUser);
+        }
+      }
       alert('Đồng bộ thành công: Mật khẩu đã được gỡ khôi phục về trạng thái ban đầu "Vnpt@2026"!');
     }
   };
@@ -213,7 +290,13 @@ export default function AdminModule({
       return;
     }
     if (confirm('Bạn có chắc muốn xóa thành viên này ra khỏi danh sách?')) {
+      const userToDelete = users.find(u => u.id === userId);
       onUsersChange(users.filter(u => u.id !== userId));
+
+      // Sync to Cloudflare D1
+      if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+        if (userToDelete) syncUserToCloud('delete', userToDelete);
+      }
     }
   };
 
@@ -278,6 +361,11 @@ export default function AdminModule({
       if (importedUsers.length > 0) {
         onUsersChange([...users, ...importedUsers]);
         logs.push(`Hoàn tất! Đồng bộ thành công ${importedUsers.length} tài khoản mới vào cơ sở dữ liệu.`);
+
+        // Sync to Cloudflare D1
+        if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+          importedUsers.forEach(u => syncUserToCloud('create', u));
+        }
       } else {
         logs.push('Không có tài khoản mới hợp lệ nào được giải nén.');
       }

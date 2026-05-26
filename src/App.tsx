@@ -152,6 +152,8 @@ export default function App() {
           if (cleanUrl.endsWith('/')) {
             cleanUrl = cleanUrl.slice(0, -1);
           }
+          
+          // 1. Đồng bộ danh mục thuê bao (Subscribers)
           const response = await fetch(`${cleanUrl}/api/subscribers`, {
             headers: {
               'x-api-secret': cloudflareConfig.apiSecret,
@@ -159,8 +161,39 @@ export default function App() {
           });
           if (response.ok) {
             const externalRecords = await response.json();
-            if (Array.isArray(externalRecords) && externalRecords.length > 0) {
+            if (Array.isArray(externalRecords)) {
               setSubscribers(externalRecords);
+            }
+          }
+
+          // 2. Đồng bộ danh mục đơn vị (Units)
+          const unitsResponse = await fetch(`${cleanUrl}/api/units`, {
+            headers: {
+              'x-api-secret': cloudflareConfig.apiSecret,
+            }
+          });
+          if (unitsResponse.ok) {
+            const externalUnits = await unitsResponse.json();
+            if (Array.isArray(externalUnits) && externalUnits.length > 0) {
+              setUnits(externalUnits);
+            }
+          }
+
+          // 3. Đồng bộ danh sách tài khoản (Users)
+          const usersResponse = await fetch(`${cleanUrl}/api/users`, {
+            headers: {
+              'x-api-secret': cloudflareConfig.apiSecret,
+            }
+          });
+          if (usersResponse.ok) {
+            const externalUsers = await usersResponse.json();
+            if (Array.isArray(externalUsers) && externalUsers.length > 0) {
+              // SQLite lưu boolean dạng số 0/1, chuyển đổi ngược về true/false
+              const parsedUsers = externalUsers.map((u: any) => ({
+                ...u,
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+              }));
+              setUsers(parsedUsers);
             }
           }
         } catch (e) {
@@ -240,6 +273,30 @@ export default function App() {
     );
 
     setUsers(updatedUsers);
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl && passwordChangeRequiredUser) {
+      try {
+        let cleanUrl = cloudflareConfig.workerUrl.trim();
+        if (cleanUrl.endsWith('/')) {
+          cleanUrl = cleanUrl.slice(0, -1);
+        }
+        fetch(`${cleanUrl}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': cloudflareConfig.apiSecret,
+          },
+          body: JSON.stringify({
+            action: 'update',
+            user: { ...passwordChangeRequiredUser, isFirstLogin: false }
+          })
+        }).catch(err => console.error('Lỗi sync user on password change:', err));
+      } catch (e) {
+        console.warn('Lỗi kết nối đồng bộ:', e);
+      }
+    }
+
     setCurrentUser({ ...passwordChangeRequiredUser!, isFirstLogin: false });
     
     // Clear out

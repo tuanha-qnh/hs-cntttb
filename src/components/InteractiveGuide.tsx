@@ -15,7 +15,35 @@ export default function InteractiveGuide() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const schemaSql = `-- 1. Tạo bảng subscribers (Lưu thông tin thuê bao)
+  const schemaSql = `-- 1 TẠO BẢNG ĐƠN VỊ & CHI NHÁNH
+CREATE TABLE IF NOT EXISTS units (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parentId TEXT
+);
+
+-- Chèn dữ liệu mẫu cho danh mục Đơn vị gốc
+INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_ROOT', 'VNPT Quảng Ninh', NULL);
+INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_HL', 'Trung tâm KD Hạ Long', 'UN_ROOT');
+INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_BC', 'Phòng BH Bãi Cháy', 'UN_HL');
+INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_CP', 'Trung tâm KD Cẩm Phả', 'UN_ROOT');
+
+-- 2. TẠO BẢNG NHÂN SỰ & TÀI KHOẢN GIAO DỊCH VIÊN
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  fullName TEXT NOT NULL,
+  role TEXT NOT NULL,
+  unitId TEXT NOT NULL,
+  isFirstLogin INTEGER NOT NULL,
+  status TEXT NOT NULL
+);
+
+-- Chèn dữ liệu tài khoản quản trị và giao dịch viên mẫu
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active');
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active');
+
+-- 3. TẠO BẢNG HỒ SƠ THUÊ BAO
 CREATE TABLE IF NOT EXISTS subscribers (
   id TEXT PRIMARY KEY,
   phoneNumber TEXT NOT NULL,
@@ -51,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
 
   const workerCode = `/**
  * Cloudflare Worker Backend cho Hệ thống lưu trữ VinaPhone TTTB
- * Hỗ trợ lưu trữ Metadata vào Cloudflare D1 và Ảnh lên Cloudflare R2
+ * Hỗ trợ lưu trữ Metadata vào Cloudflare D1 (Subscribers, Units, Users) và Ảnh lên Cloudflare R2
  */
 
 export interface Env {
@@ -65,7 +93,7 @@ export interface Env {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Xử lý CORS kích hoạt cho phép Frontend upload từ mọi nguồn (bao gồm Github Pages)
+    // Xử lý CORS kích hoạt cho phép Frontend upload từ mọi nguồn (bao gồm Github Pages, Vercel)
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
@@ -144,7 +172,7 @@ export default {
 
         // Ghi nhận thông tin vào cơ sở dữ liệu Cloudflare D1
         await env.DB.prepare(
-          "INSERT INTO subscribers (id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+          "INSERT OR REPLACE INTO subscribers (id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
         ).bind(id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl).run();
 
         return new Response(JSON.stringify({ success: true, id, imageUrl }), {
@@ -169,7 +197,72 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // 4. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
+      // 4. Endpoint: Lấy danh sách Đơn vị (GET UNITS)
+      if (path === "/api/units" && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM units ORDER BY id ASC").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 5. Endpoint: Đồng bộ hóa Đơn vị (POST UNITS)
+      if (path === "/api/units" && request.method === "POST") {
+        const { action, unit } = await request.json() as any;
+        if (!unit || !unit.id) {
+          return new Response(JSON.stringify({ error: "Tham số đơn vị không hợp lệ." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (action === "delete") {
+          await env.DB.prepare("DELETE FROM units WHERE id = ?1").bind(unit.id).run();
+        } else {
+          // "create" hoặc "update"
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO units (id, name, parentId) VALUES (?1, ?2, ?3)"
+          ).bind(unit.id, unit.name, unit.parentId).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 6. Endpoint: Lấy danh sách Nhân sự (GET USERS)
+      if (path === "/api/users" && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM users ORDER BY id ASC").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7. Endpoint: Đồng bộ hóa Nhân sự (POST USERS)
+      if (path === "/api/users" && request.method === "POST") {
+        const { action, user } = await request.json() as any;
+        if (!user || !user.id || !user.username) {
+          return new Response(JSON.stringify({ error: "Tham số tài khoản không hợp lệ." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (action === "delete") {
+          await env.DB.prepare("DELETE FROM users WHERE id = ?1").bind(user.id).run();
+        } else {
+          // "create" hoặc "update"
+          const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 8. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
       if (path === "/api/test" && request.method === "GET") {
         return new Response(JSON.stringify({ status: "connected", db: "D1", storage: "R2", time: new Date().toISOString() }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
