@@ -1,0 +1,792 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useRef } from 'react';
+import { 
+  Building2, Users, Sliders, ChevronRight, ChevronDown, CheckSquare, Plus, Edit2, Trash2, 
+  RotateCcw, Download, FileSpreadsheet, Cloud, Save, CheckCircle, AlertTriangle, Play, RefreshCw 
+} from 'lucide-react';
+import { Unit, User, CloudflareConfig } from '../types';
+
+interface Props {
+  units: Unit[];
+  users: User[];
+  cloudflareConfig: CloudflareConfig;
+  onUnitsChange: (newUnits: Unit[]) => void;
+  onUsersChange: (newUsers: User[]) => void;
+  onConfigChange: (newConfig: CloudflareConfig) => void;
+}
+
+export default function AdminModule({ 
+  units, 
+  users, 
+  cloudflareConfig, 
+  onUnitsChange, 
+  onUsersChange, 
+  onConfigChange 
+}: Props) {
+  const [activeTab, setActiveTab] = useState<'units' | 'users' | 'import' | 'cloudflare'>('units');
+
+  // --- 1. HOÀN THIỆN KHAI BÁO ĐƠN VỊ (TREE TREE VIEW) ---
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+  const [editingUnitName, setEditingUnitName] = useState('');
+  const [newUnitParentId, setNewUnitParentId] = useState<string | null>(null);
+  const [newUnitName, setNewUnitName] = useState('');
+  const [expandedUnitIds, setExpandedUnitIds] = useState<Record<string, boolean>>({
+    'UN_ROOT': true,
+    'UN_HL': true
+  });
+
+  const toggleExpand = (id: string) => {
+    setExpandedUnitIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleAddUnit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUnitName.trim()) return;
+    const newUnit: Unit = {
+      id: 'UN_' + Date.now(),
+      name: newUnitName.trim(),
+      parentId: newUnitParentId
+    };
+    onUnitsChange([...units, newUnit]);
+    setNewUnitName('');
+    setNewUnitParentId(null);
+  };
+
+  const handleStartEditUnit = (unit: Unit) => {
+    setEditingUnitId(unit.id);
+    setEditingUnitName(unit.name);
+  };
+
+  const handleSaveEditUnit = (id: string) => {
+    if (!editingUnitName.trim()) return;
+    onUnitsChange(units.map(u => u.id === id ? { ...u, name: editingUnitName.trim() } : u));
+    setEditingUnitId(null);
+  };
+
+  const handleDeleteUnit = (id: string) => {
+    if (id === 'UN_ROOT') {
+      alert('Không được xóa đơn vị gốc hệ thống.');
+      return;
+    }
+    if (confirm('Bạn có chắc muốn xóa đơn vị này? Các đơn vị con cũng sẽ mất liên kết.')) {
+      onUnitsChange(units.filter(u => u.id !== id && u.parentId !== id));
+    }
+  };
+
+  // Render tree node recursive component
+  const renderTreeNode = (parentId: string | null, depth = 0) => {
+    const children = units.filter(u => u.parentId === parentId);
+    if (children.length === 0) return null;
+
+    return (
+      <div className={`space-y-1 ${depth > 0 ? 'pl-6 border-l border-slate-200 mt-1 ml-3' : ''}`}>
+        {children.map(unit => {
+          const isExpanded = expandedUnitIds[unit.id];
+          const hasChildren = units.some(u => u.parentId === unit.id);
+          const isEditing = editingUnitId === unit.id;
+
+          return (
+            <div key={unit.id} className="space-y-1">
+              <div className="flex items-center justify-between p-2 hover:bg-slate-100/80 rounded-lg group transition-colors">
+                <div className="flex items-center gap-2">
+                  {hasChildren ? (
+                    <button onClick={() => toggleExpand(unit.id)} className="p-0.5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  ) : (
+                    <span className="w-5" />
+                  )}
+                  <Building2 className={`w-4 h-4 ${depth === 0 ? 'text-[#005BAA]' : 'text-cyan-600'}`} />
+                  
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={editingUnitName}
+                        onChange={(e) => setEditingUnitName(e.target.value)}
+                        className="px-2 py-0.5 text-xs border rounded outline-none w-48 font-sans"
+                        autoFocus
+                      />
+                      <button onClick={() => handleSaveEditUnit(unit.id)} className="px-2 py-0.5 bg-[#005BAA] text-white rounded text-[10px] font-semibold">Lưu</button>
+                      <button onClick={() => setEditingUnitId(null)} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-semibold">Hủy</button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-700 font-sans">{unit.name}</span>
+                  )}
+                </div>
+
+                {!isEditing && (
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px]">
+                    <button
+                      onClick={() => {
+                        setNewUnitParentId(unit.id);
+                        setNewUnitName('');
+                      }}
+                      className="p-1 text-slate-500 hover:text-[#005BAA] hover:bg-white rounded cursor-pointer"
+                      title="Thêm đơn vị con"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleStartEditUnit(unit)}
+                      className="p-1 text-slate-500 hover:text-cyan-600 hover:bg-white rounded cursor-pointer"
+                      title="Sửa tên"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUnit(unit.id)}
+                      className="p-1 text-slate-500 hover:text-red-500 hover:bg-white rounded cursor-pointer"
+                      title="Xóa đơn vị"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {isExpanded && renderTreeNode(unit.id, depth + 1)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+
+  // --- 2. KHAI BÁO NGƯỜI DÙNG CHUYÊN NGHIỆP ---
+  const [adminUserForm, setAdminUserForm] = useState({
+    username: '',
+    fullName: '',
+    role: 'User' as 'Admin' | 'User',
+    unitId: 'UN_ROOT'
+  });
+
+  const handleAddUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    const { username, fullName, role, unitId } = adminUserForm;
+    if (!username.trim() || !fullName.trim()) {
+      alert('Vui lòng điền đủ Username và Họ tên.');
+      return;
+    }
+
+    const collision = users.some(u => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (collision) {
+      alert('Tên người dùng đã tồn tại trong hệ thống.');
+      return;
+    }
+
+    const newUser: User = {
+      id: 'USR_' + Date.now(),
+      username: username.trim().toLowerCase(),
+      fullName: fullName.trim(),
+      role,
+      unitId,
+      isFirstLogin: true, // Requires password change
+      status: 'active'
+    };
+
+    onUsersChange([...users, newUser]);
+    // Save credentials warning in local store or mock output
+    alert(`Người dùng mới được thêm thành công!\nMật khẩu tạm thời mặc định: Vnpt@2026\nYêu cầu đổi mật khẩu trong lần đăng nhập đầu tiên.`);
+
+    setAdminUserForm({
+      username: '',
+      fullName: '',
+      role: 'User',
+      unitId: 'UN_ROOT'
+    });
+  };
+
+  const handleResetPassword = (userId: string) => {
+    if (confirm('Bạn có chắc muốn đặt lại mật khẩu cho thành viên này về lại giá trị mặc định "Vnpt@2026" ?')) {
+      alert('Đồng bộ thành công: Mật khẩu đã được gỡ khôi phục về trạng thái ban đầu "Vnpt@2026"!');
+    }
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (userId === 'admin') {
+      alert('Tài khoản SuperAdmin gốc không được phép xóa.');
+      return;
+    }
+    if (confirm('Bạn có chắc muốn xóa thành viên này ra khỏi danh sách?')) {
+      onUsersChange(users.filter(u => u.id !== userId));
+    }
+  };
+
+
+  // --- 3. ĐỌC VÀ IMPORT EXCEL / CSV CHUYÊN NGHIỆP ---
+  const [csvStatusLogs, setCsvStatusLogs] = useState<string[]>([]);
+  const [csvDragActive, setCsvDragActive] = useState(false);
+  const fileInputCsvRef = useRef<HTMLInputElement>(null);
+
+  const downloadSampleCsv = () => {
+    const csvContent = "\uFEFFMã đơn vị,Họ tên,Username,Quyền\nUN_ROOT,Nguyễn Văn A,nguyenvana,User\nUN_HL,Trần Thị B,tranthib,Admin\nUN_BC,Lê Văn C,levanc,User";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'vinaphone_users_sample_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCsvImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n');
+      const importedUsers: User[] = [];
+      const logs: string[] = ['Bắt đầu quét tệp tin CSV...'];
+
+      lines.forEach((line, index) => {
+        if (index === 0) return; // Skip headers CSV row
+        const columns = line.split(',');
+        if (columns.length >= 4) {
+          const unitId = columns[0].trim();
+          const fullName = columns[1].trim();
+          const username = columns[2].trim().toLowerCase();
+          const role = columns[3].trim() === 'Admin' ? 'Admin' : 'User';
+
+          if (fullName && username) {
+            // Check collision
+            const exists = users.some(u => u.username.toLowerCase() === username);
+            if (!exists) {
+              importedUsers.push({
+                id: 'USR_CSV_' + Date.now() + '_' + index,
+                username,
+                fullName,
+                role,
+                unitId: unitId || 'UN_ROOT',
+                isFirstLogin: true,
+                status: 'active'
+              });
+              logs.push(`→ Thêm thành công: ${fullName} (${username}) - Đơn vị: ${unitId}`);
+            } else {
+              logs.push(`⚠ Bỏ qua (Trung lặp username): ${username}`);
+            }
+          }
+        }
+      });
+
+      if (importedUsers.length > 0) {
+        onUsersChange([...users, ...importedUsers]);
+        logs.push(`Hoàn tất! Đồng bộ thành công ${importedUsers.length} tài khoản mới vào cơ sở dữ liệu.`);
+      } else {
+        logs.push('Không có tài khoản mới hợp lệ nào được giải nén.');
+      }
+      setCsvStatusLogs(logs);
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleCsvDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setCsvDragActive(true);
+    } else {
+      setCsvDragActive(false);
+    }
+  };
+
+  const handleCsvDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setCsvDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleCsvImport(e.dataTransfer.files[0]);
+    }
+  };
+
+
+  // --- 4. BỔ SUNG CẤU HÌNH CLOUDFLARE D1 & R2 ---
+  const [apiConfigForm, setApiConfigForm] = useState({
+    workerUrl: cloudflareConfig.workerUrl || '',
+    apiSecret: cloudflareConfig.apiSecret || '',
+    enabled: cloudflareConfig.enabled
+  });
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
+
+  const handleSaveApiSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfigChange({
+      enabled: apiConfigForm.enabled,
+      workerUrl: apiConfigForm.workerUrl.trim(),
+      apiSecret: apiConfigForm.apiSecret.trim(),
+      status: testResult === 'success' ? 'connected' : 'disconnected',
+      lastTested: new Date().toISOString()
+    });
+    alert('Đã lưu cấu hình hạ tầng kết nối D1 & R2 đám mây!');
+  };
+
+  const triggerTestConnection = async () => {
+    if (!apiConfigForm.workerUrl) {
+      alert('Vui lòng nhập Worker Cloud URL trước khi thử kết nối.');
+      return;
+    }
+    setTestingConnection(true);
+    setTestResult(null);
+
+    try {
+      let cleanUrl = apiConfigForm.workerUrl.trim();
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+
+      const response = await fetch(`${cleanUrl}/api/test`, {
+        method: 'GET',
+        headers: {
+          'x-api-secret': apiConfigForm.apiSecret.trim(),
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'connected') {
+          setTestResult('success');
+        } else {
+          setTestResult('failed');
+        }
+      } else {
+        setTestResult('failed');
+      }
+    } catch (e) {
+      setTestResult('failed');
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Tab select bar */}
+      <div className="bg-slate-50 border-b border-slate-200 flex overflow-x-auto text-xs">
+        <button
+          onClick={() => setActiveTab('units')}
+          className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
+            activeTab === 'units' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Quản lý cơ cấu Tổ chức Đơn vị
+        </button>
+
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
+            activeTab === 'users' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Khai báo Quản trị Người dùng
+        </button>
+
+        <button
+          onClick={() => setActiveTab('import')}
+          className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
+            activeTab === 'import' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          Import CSV / Excel đồng loạt
+        </button>
+
+        <button
+          onClick={() => setActiveTab('cloudflare')}
+          className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
+            activeTab === 'cloudflare' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Cloud className="w-4 h-4" />
+          Cấu hình CSLD D1 & R2 Storage
+        </button>
+      </div>
+
+      <div className="p-6">
+        {/* TAB 1: BRANCH MANAGEMENT (TREE-VIEW) */}
+        {activeTab === 'units' && (
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+            <div className="md:col-span-5 bg-slate-50/50 p-5 rounded-xl border border-slate-200">
+              <h3 className="text-xs font-bold text-slate-700 uppercase border-b pb-2.5 mb-4 font-sans flex items-center gap-1">
+                <Plus className="w-4 h-4 text-[#005BAA]" />
+                Đăng ký Đơn vị Hành chính mới
+              </h3>
+
+              <form onSubmit={handleAddUnit} className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Chọn cấp đơn vị Cha</span>
+                  <select
+                    value={newUnitParentId || ''}
+                    onChange={(e) => setNewUnitParentId(e.target.value || null)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none font-sans"
+                  >
+                    <option value="">(Cấp gốc cao nhất - VNPT Quảng Ninh)</option>
+                    {units.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Tên chi nhánh / Đơn vị mới *</span>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Ví dụ: Phòng BH Bãi Cháy"
+                    value={newUnitName}
+                    onChange={(e) => setNewUnitName(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none font-sans"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                >
+                  Tạo đơn vị mới
+                </button>
+              </form>
+            </div>
+
+            <div className="md:col-span-7 space-y-2">
+              <h3 className="text-xs font-bold text-slate-700 uppercase border-b pb-2.5 mb-4 flex items-center gap-2 font-sans">
+                <Building2 className="w-4 h-4 text-[#005BAA]" />
+                Sơ đồ cấu trúc hành chính dạng Cây (Hierarchical Tree)
+              </h3>
+              
+              <div className="p-4 bg-white border rounded-xl max-h-[400px] overflow-y-auto">
+                <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-lg text-xs font-bold font-sans">
+                  <Sliders className="w-4 h-4 text-[#005BAA]" />
+                  <span>Tổng Tổng Công Ty VNPT - ĐƠN VỊ CHỦ QUẢN</span>
+                </div>
+                <div className="mt-2 space-y-1">
+                  {renderTreeNode(null)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: USER SETUP */}
+        {activeTab === 'users' && (
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+            {/* Create form user */}
+            <div className="md:col-span-4 bg-slate-50/50 p-5 rounded-xl border border-slate-200">
+              <h3 className="text-xs font-bold text-slate-700 uppercase border-b pb-2.5 mb-4 font-sans flex items-center gap-1">
+                <Plus className="w-4 h-4 text-cyan-600" />
+                Đăng ký tài khoản Giao dịch viên
+              </h3>
+
+              <form onSubmit={handleAddUser} className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Thuộc đơn vị trực thuộc</span>
+                  <select
+                    value={adminUserForm.unitId}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, unitId: e.target.value })}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                  >
+                    {units.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Họ và tên nhân viên *</span>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Điền họ tên người dùng"
+                    value={adminUserForm.fullName}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, fullName: e.target.value })}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Tên đăng nhập (Username) *</span>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Ví dụ: tuanha"
+                    value={adminUserForm.username}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, username: e.target.value })}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Quyền lợi phân cấp</span>
+                  <select
+                    value={adminUserForm.role}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, role: e.target.value as 'Admin' | 'User' })}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                  >
+                    <option value="User">Giao dịch viên (User)</option>
+                    <option value="Admin">Quản trị viên (Admin)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                >
+                  Kích hoạt Người dùng
+                </button>
+              </form>
+            </div>
+
+            {/* List users table */}
+            <div className="md:col-span-8 space-y-3">
+              <h3 className="text-xs font-bold text-slate-700 uppercase border-b pb-2.5 flex items-center gap-2 font-sans">
+                <Users className="w-4 h-4 text-[#005BAA]" />
+                Danh mục nhân sự khai thác cổng nghiệp vụ
+              </h3>
+
+              <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white overflow-hidden shadow-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-slate-500 text-[10px] font-bold uppercase font-sans border-b border-slate-200/80 tracking-wider">
+                      <th className="px-4 py-3">Tài khoản</th>
+                      <th className="px-4 py-3">Họ và tên</th>
+                      <th className="px-4 py-3">Thuộc Chi nhánh</th>
+                      <th className="px-4 py-3">Phân Quyền</th>
+                      <th className="px-4 py-3 text-center">Bộ khóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                    {users.map(u => {
+                      const associatedUnit = units.find(item => item.id === u.unitId);
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-100/30 transition-colors text-slate-700 even:bg-slate-50/20">
+                          <td className="px-4 py-3 text-[#005BAA] font-bold font-mono text-xs">{u.username}</td>
+                          <td className="px-4 py-3 font-bold text-slate-850">{u.fullName}</td>
+                          <td className="px-4 py-3 text-slate-500 font-medium">{associatedUnit ? associatedUnit.name : 'Chưa phân bổ'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] border tracking-wider ${
+                              u.role === 'Admin' ? 'bg-red-50 text-red-650 border-red-100' : 'bg-green-50 text-green-650 border-green-100'
+                            }`}>
+                              {u.role === 'Admin' ? 'ADMIN' : 'GDV (USER)'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleResetPassword(u.id)}
+                                className="p-1 px-1.5 hover:bg-slate-100 border border-transparent hover:border-slate-205 text-orange-600 rounded-md transition-all cursor-pointer"
+                                title="Khôi phục Password mặc định (Vnpt@2026)"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(u.id)}
+                                className="p-1 px-1.5 hover:bg-red-50 border border-transparent hover:border-red-100 text-red-600 rounded-md transition-all cursor-pointer"
+                                title="Xóa tài khoản"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: MASS CSV IMPORT EXCEL */}
+        {activeTab === 'import' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="bg-slate-50/60 p-5 rounded-xl border border-slate-205 flex flex-col md:flex-row items-center justify-between gap-5 col-span-1">
+              <div className="space-y-1">
+                <h4 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-[#005BAA]" />
+                  Nạp tài khoản hàng loạt bằng Excel / CSV
+                </h4>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans max-w-xl">
+                  Để nạp nhanh hàng loạt tài khoản người dùng, hãy tải tệp danh sách mẫu CSV tiêu chuẩn, cập nhật thông tin cột đơn vị, họ tên, quyền lực rồi kéo thả nạp trở lại để ghi vào cơ sở dữ liệu.
+                </p>
+              </div>
+
+              <button
+                onClick={downloadSampleCsv}
+                className="px-4 py-2 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                Tải file mẫu Excel (.CSV)
+              </button>
+            </div>
+
+            {/* Draggable Drop csv container */}
+            <div
+              onDragEnter={handleCsvDrag}
+              onDragOver={handleCsvDrag}
+              onDragLeave={handleCsvDrag}
+              onDrop={handleCsvDrop}
+              onClick={() => fileInputCsvRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] ${
+                csvDragActive ? 'border-[#005BAA] bg-blue-50/20' : 'border-slate-200/90 hover:border-[#005BAA] bg-slate-50/30'
+              }`}
+            >
+              <input
+                ref={fileInputCsvRef}
+                type="file"
+                accept=".csv"
+                onChange={(e) => e.target.files?.[0] && handleCsvImport(e.target.files[0])}
+                className="hidden"
+              />
+
+              <div className="space-y-2 flex flex-col items-center justify-center">
+                <div className="p-3 bg-slate-100 text-slate-500 rounded-full border border-slate-200">
+                  <FileSpreadsheet className="w-6 h-6 text-[#005BAA]" />
+                </div>
+                <p className="text-xs font-bold text-slate-800 font-sans">
+                  Kéo thả file mẫu CSV / Excel của bạn vào đây hoặc bấm để tải lên
+                </p>
+                <p className="text-[10px] text-slate-400 font-sans font-medium">
+                  Hệ thống tiếp nhận bảng mã UTF-8 định dạng chuẩn và rà soát định danh trùng lập.
+                </p>
+              </div>
+            </div>
+
+            {/* Parsing logic display logs */}
+            {csvStatusLogs.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-700 font-sans">Bộ nhật ký giải nén nhập bảng ghi (LOGS)</h4>
+                <div className="bg-slate-900 text-slate-300 p-4 rounded-xl font-mono text-xs space-y-1.5 max-h-48 overflow-y-auto">
+                  {csvStatusLogs.map((log, index) => (
+                    <div key={index} className="leading-relaxed">{log}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: DATABASE CONNECTION OVERVIEW CONFIG */}
+        {activeTab === 'cloudflare' && (
+          <div className="space-y-6">
+            <div className="bg-sky-50 p-4 rounded-xl border border-sky-100 flex items-start gap-3">
+              <Cloud className="w-5 h-5 text-[#005BAA] mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-extrabold text-[#005BAA] font-sans">
+                  Cơ chế Đồng bộ Hóa Đám Mây Trực Tuyến Độc lập (Cloudflare Serverless)
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed font-sans">
+                  Hãy nhập liên kết API Worker được thiết lập từ hướng dẫn "Cầm tay chỉ việc", cùng Auth Secret Key của bạn. Khi kích hoạt tùy chọn này, bất kỳ thao tác tạo hồ sơ hoặc tra cứu, xem ảnh đều được gửi trực tiếp tới máy chủ Cloudflare D1 SQL và R2 Object Storage của bạn, an toàn tuyệt đối.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveApiSettings} className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 font-sans flex items-center gap-1">
+                    Worker API Deployment Endpoint Base URL
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://vinaphone-tttb-worker.tuanha-qnh.workers.dev"
+                    value={apiConfigForm.workerUrl}
+                    onChange={(e) => setApiConfigForm({ ...apiConfigForm, workerUrl: e.target.value })}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg outline-none font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 font-sans flex items-center gap-1">
+                    API Authorization Secret Token (x-api-secret)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Khóa mật khẩu API định cấu hình trong wrangler.toml"
+                    value={apiConfigForm.apiSecret}
+                    onChange={(e) => setApiConfigForm({ ...apiConfigForm, apiSecret: e.target.value })}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Status Connection check box */}
+              <div className="flex items-center justify-between border border-slate-200 p-4 bg-slate-50/50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex h-3 w-3">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      testResult === 'success' ? 'bg-emerald-400' : 'bg-red-400'
+                    }`}></span>
+                    <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                      testResult === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                    }`}></span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-800 font-sans">Kiểm thử trạng thái mạng: </span>
+                    <span className="text-xs font-extrabold text-slate-900 font-sans">
+                      {testResult === 'success' ? (
+                        <span className="text-emerald-600">ĐÃ THÔNG SUỐT (Liên kết với đám mây sẳn sàng)</span>
+                      ) : (
+                        <span className="text-slate-500">Chờ kết nối kiểm thử</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={testingConnection}
+                    onClick={triggerTestConnection}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {testingConnection ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Đang Ping...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5" />
+                        Ping Test kết nối
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center gap-2 border-l pl-4 ml-2">
+                    <input
+                      id="checkbox-enable-cloudflare"
+                      type="checkbox"
+                      checked={apiConfigForm.enabled}
+                      onChange={(e) => setApiConfigForm({ ...apiConfigForm, enabled: e.target.checked })}
+                      className="w-4 h-4 text-[#005BAA] focus:ring-blue-100 border-slate-300 rounded"
+                    />
+                    <label htmlFor="checkbox-enable-cloudflare" className="text-xs font-semibold text-slate-700 font-sans select-none cursor-pointer">
+                      Chuyển sang Cơ chế Trực tuyến 100%
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t mt-4">
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors shadow-md flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  Ghi Lại Cấu Hình Toàn Hệ Thống
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

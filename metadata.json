@@ -1,0 +1,6 @@
+{
+  "name": "VinaPhone Subscriber Document Storage",
+  "description": "Hệ thống quản lý và lưu trữ giấy tờ cập nhật thông tin thuê bao di động VinaPhone, tích hợp giải pháp Cloudflare D1 và R2 Storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

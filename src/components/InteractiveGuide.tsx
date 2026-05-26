@@ -1,0 +1,384 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { BookOpen, Database, HardDrive, Cpu, Key, CheckCircle, Copy, Terminal } from 'lucide-react';
+
+export default function InteractiveGuide() {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const schemaSql = `-- 1. Tạo bảng subscribers (Lưu thông tin thuê bao)
+CREATE TABLE IF NOT EXISTS subscribers (
+  id TEXT PRIMARY KEY,
+  phoneNumber TEXT NOT NULL,
+  fullName TEXT NOT NULL,
+  idNumber TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  createdBy TEXT NOT NULL,
+  creatorName TEXT NOT NULL,
+  unitId TEXT NOT NULL,
+  unitName TEXT NOT NULL,
+  imageUrl TEXT NOT NULL
+);
+
+-- Index tìm kiếm tối ưu hóa cho tra cứu nhanh
+CREATE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers(phoneNumber);
+CREATE INDEX IF NOT EXISTS idx_subscribers_idNumber ON subscribers(idNumber);
+CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
+
+  const workerCode = `/**
+ * Cloudflare Worker Backend cho Hệ thống lưu trữ VinaPhone TTTB
+ * Hỗ trợ lưu trữ Metadata vào Cloudflare D1 và Ảnh lên Cloudflare R2
+ */
+
+export interface Env {
+  // Binding với cơ sở dữ liệu D1
+  DB: D1Database;
+  // Binding với Object Storage R2
+  R2_BUCKET: R2Bucket;
+  // Khóa bí mật bảo mật kết nối API giữa Frontend và Worker
+  API_SECRET: string;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Xử lý CORS kích hoạt cho phép Frontend upload từ mọi nguồn (bao gồm Github Pages)
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-secret",
+      "Access-Control-Max-Age": "86400",
+    };
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Xác thực API Key bảo mật nâng cao
+    const clientSecret = request.headers.get("x-api-secret") || url.searchParams.get("secret");
+    if (env.API_SECRET && clientSecret !== env.API_SECRET) {
+      return new Response(JSON.stringify({ error: "Xác thực không hợp lệ. Vui lòng kiểm tra API Secret trong cấu hình." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    try {
+      // 1. Endpoint: Lấy danh sách thuê bao (TRA CỨU)
+      if (path === "/api/subscribers" && request.method === "GET") {
+        const query = url.searchParams.get("query") || "";
+        let result;
+        
+        if (query) {
+          result = await env.DB.prepare(
+            "SELECT * FROM subscribers WHERE phoneNumber LIKE ?1 OR idNumber LIKE ?1 OR fullName LIKE ?1 ORDER BY createdAt DESC"
+          ).bind(\`%\${query}%\`).all();
+        } else {
+          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC LIMIT 100").all();
+        }
+
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 2. Endpoint: Thêm mới thuê bao và upload ảnh lên R2
+      if (path === "/api/subscribers" && request.method === "POST") {
+        const data = await request.json() as any;
+        const { id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageBase64 } = data;
+
+        if (!phoneNumber || !fullName || !idNumber || !imageBase64) {
+          return new Response(JSON.stringify({ error: "Dữ liệu bắt buộc bị thiếu." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Tách header của Base64
+        const parts = imageBase64.split(";base64,");
+        const mimeType = parts[0].split(":")[1] || "image/jpeg";
+        const base64Data = parts[1];
+        
+        // Chuyển Base64 thành Binary Buffer
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Tạo định danh tệp và upload trực tiếp lên Cloudflare R2
+        const r2FileName = \`tttb/\${id}_\${phoneNumber}.jpg\`;
+        await env.R2_BUCKET.put(r2FileName, bytes, {
+          httpMetadata: { contentType: mimeType }
+        });
+
+        // Tạo public URL giả định hoặc thông qua Worker proxy
+        const imageUrl = \`\${url.origin}/api/files/\${r2FileName}\`;
+
+        // Ghi nhận thông tin vào cơ sở dữ liệu Cloudflare D1
+        await env.DB.prepare(
+          "INSERT INTO subscribers (id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+        ).bind(id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl).run();
+
+        return new Response(JSON.stringify({ success: true, id, imageUrl }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 3. Endpoint: Xem và tải ảnh từ Cloudflare R2
+      if (path.startsWith("/api/files/") && request.method === "GET") {
+        const fileKey = path.replace("/api/files/", "");
+        const object = await env.R2_BUCKET.get(fileKey);
+
+        if (object === null) {
+          return new Response("Không tìm thấy tệp ảnh trong bộ lưu trữ Cloudflare R2.", { status: 404 });
+        }
+
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("etag", object.httpEtag);
+
+        return new Response(object.body, { headers });
+      }
+
+      // 4. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
+      if (path === "/api/test" && request.method === "GET") {
+        return new Response(JSON.stringify({ status: "connected", db: "D1", storage: "R2", time: new Date().toISOString() }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "Endpoint không tồn tại." }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+  }
+};`;
+
+  const wranglerConfig = `name = "vinaphone-tttb-worker"
+main = "src/index.ts"
+compatibility_date = "2026-05-26"
+
+# 1. Liên kết Cơ sở dữ liệu Cloudflare D1
+[[d1_databases]]
+binding = "DB"
+database_name = "vinaphone-tttb-db"
+database_id = "MÃ_GIÁ_TRỊ_DATABASE_ID_CỦA_BẠN_SAU_KHI_TẠO_D1"
+
+# 2. Liên kết Bộ lưu trữ Cloudflare R2 Storage
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "vinaphone-tttb-bucket"
+
+# 3. Biến môi trường bảo mật
+[vars]
+API_SECRET = "Mật_Khẩu_Tự_Chọn_Bảo_Mật_Cao_Cho_Hệ_Thống"`;
+
+  return (
+    <div className="space-y-8 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+      <div>
+        <div className="flex items-center gap-3">
+          <BookOpen className="w-8 h-8 text-[#005BAA]" />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 font-sans">
+              CẨM TAY CHỈ VIỆC: Cấu Hình Cloudflare D1 & R2 Storage
+            </h2>
+            <p className="text-sm text-slate-500 font-sans mt-0.5">
+              Hướng dẫn triển khai chi tiết từng bước tạo Database và Bộ lưu trữ đám mây Cloudflare chạy trực tuyến 100%.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Step 1 */}
+        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold px-2.5 py-1 bg-[#005BAA]/10 text-[#005BAA] rounded-full font-mono">
+                BƯỚC 1
+              </span>
+              <Database className="w-5 h-5 text-slate-400" />
+            </div>
+            <h3 className="font-semibold text-slate-800 text-sm">Cơ cấu dữ liệu Cloudflare D1</h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Truy cập Cloudflare Dashboard → <strong>D1 Databases</strong> → Tạo Cơ sở dữ liệu mới với tên 
+              <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono mx-1">vinaphone-tttb-db</code>.
+              Sau đó chạy đoạn mã SQL khởi tạo bảng lưu trữ ở bên dưới.
+            </p>
+          </div>
+        </div>
+
+        {/* Step 2 */}
+        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold px-2.5 py-1 bg-[#005BAA]/10 text-[#005BAA] rounded-full font-mono">
+                BƯỚC 2
+              </span>
+              <HardDrive className="w-5 h-5 text-slate-400" />
+            </div>
+            <h3 className="font-semibold text-slate-800 text-sm">Bộ lưu trữ Cloudflare R2 Upload</h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Vào mục <strong>R2 Object Storage</strong> → Tạo Bucket với tên tệp 
+              <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono mx-1">vinaphone-tttb-bucket</code>.
+              Trong thẻ <i>CORS Policy</i> của R2, thiết lập các quyền cho phép truy cập từ mọi nguồn gốc HTTP để phục vụ tải trực tiếp.
+            </p>
+          </div>
+        </div>
+
+        {/* Step 3 */}
+        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold px-2.5 py-1 bg-[#005BAA]/10 text-[#005BAA] rounded-full font-mono">
+                BƯỚC 3
+              </span>
+              <Cpu className="w-5 h-5 text-slate-400" />
+            </div>
+            <h3 className="font-semibold text-slate-800 text-sm">Triển khai Cloudflare Worker API</h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Tạo một dự án hoặc dán mã nguồn Cloudflare Worker được viết sẵn bên dưới vào khu vực quản trị Script để thực hiện cầu nối API chuyển dữ liệu về CSDL.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SQL Setup Block */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-400"></span>
+            <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
+            <span className="w-3 h-3 rounded-full bg-green-400"></span>
+            <span className="text-xs font-mono font-medium text-slate-600 ml-2">D1_SQL_SCHEMA.sql</span>
+          </div>
+          <button
+            onClick={() => copyToClipboard(schemaSql, 'sql')}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#005BAA] transition-colors cursor-pointer"
+          >
+            {copiedId === 'sql' ? (
+              <>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-emerald-500 font-medium">Đã sao chép!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Sao chép SQL</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="p-4 bg-slate-950 font-mono text-xs text-[#00FFCC] overflow-x-auto max-h-56">
+          <pre>{schemaSql}</pre>
+        </div>
+      </div>
+
+      {/* Wrangler CLI instruction */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
+        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-slate-600" />
+            <span className="text-xs font-mono font-medium text-slate-600">wrangler.toml</span>
+          </div>
+          <button
+            onClick={() => copyToClipboard(wranglerConfig, 'wrangler')}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#005BAA] transition-colors cursor-pointer"
+          >
+            {copiedId === 'wrangler' ? (
+              <>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-emerald-500 font-medium">Đã sao chép!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Sao chép Wrangler</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="p-4 bg-slate-950 font-mono text-xs text-slate-300 overflow-x-auto max-h-56">
+          <pre>{wranglerConfig}</pre>
+        </div>
+      </div>
+
+      {/* Cloudflare Worker Source Code Block */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
+        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full font-mono">
+              WORKER API
+            </span>
+            <span className="text-xs font-mono text-slate-600">index.ts (TypeScript / ES Module)</span>
+          </div>
+          <button
+            onClick={() => copyToClipboard(workerCode, 'worker')}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#005BAA] transition-colors cursor-pointer"
+          >
+            {copiedId === 'worker' ? (
+              <>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-emerald-500 font-medium">Đã sao chép!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Sao chép Code Worker</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="p-4 bg-slate-950 font-mono text-xs text-slate-200 overflow-x-auto max-h-96">
+          <pre>{workerCode}</pre>
+        </div>
+      </div>
+
+      {/* Guide Steps Manual */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="text-base font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
+          <Key className="w-4 h-4 text-[#005BAA]" />
+          Hướng dẫn tích hợp đầu cuối (Cầm tay chỉ việc cho Admin)
+        </h3>
+        <ol className="list-decimal list-inside space-y-3.5 text-sm text-slate-600 leading-relaxed font-sans">
+          <li>
+            <strong>Khởi động Worker:</strong> Tạo một thư mục trống, chạy lệnh <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono text-xs">npm init -y</code> và <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono text-xs">npm install wrangler --save-dev</code>.
+          </li>
+          <li>
+            <strong>Cấu hình Wrangler:</strong> Tạo tệp <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono text-xs">wrangler.toml</code> ở thư mục gốc và dán mẫu khai báo bindings cho D1, R2 ở trên. Thay đổi các mã định danh tương ứng từ tài khoản Cloudflare của bạn.
+          </li>
+          <li>
+            <strong>Dán mã lệnh:</strong> Tạo tệp tin <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono text-xs">src/index.ts</code>, copy toàn bộ nội dung mã xử lý của <strong>Worker API</strong> ở ô xanh lá trên dán vào.
+          </li>
+          <li>
+            <strong>Đẩy dự án trực tuyến:</strong> Chạy lệnh <code className="bg-slate-100 text-[#005BAA] px-1 py-0.5 rounded font-mono text-xs">npx wrangler deploy</code> trên terminal của bạn để đẩy Worker lên mây. Cloudflare sẽ cấp cho bạn một đường dẫn URL công khai có dạng như: <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded font-mono text-xs">https://vinaphone-tttb-worker.names.workers.dev</code>.
+          </li>
+          <li>
+            <strong>Thay kết nối của bạn trong Admin Portal:</strong> Vào mục <strong>Cấu hình hệ thống</strong> bên dưới tab Quản trị của cổng này, điền URL liên kết của Worker đã deploy, khóa API bí mật <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono text-xs">x-api-secret</code> của riêng bạn đã định nghĩa. Hệ thống sẽ tự kiểm thử đường truyền trực tuyến của bạn, lưu vào bộ nhớ, và tự động đồng bộ hóa dữ liệu từ lúc này thay vì cơ chế Giả lập Offline.
+          </li>
+        </ol>
+      </div>
+    </div>
+  );
+}
