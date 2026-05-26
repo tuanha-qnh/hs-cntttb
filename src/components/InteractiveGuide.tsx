@@ -66,6 +66,8 @@ CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
   {
     "AllowedOrigins": [
       "https://*.github.io",
+      "https://hs-cntttb.vercel.app",
+      "https://*.vercel.app",
       "https://ais-dev-enzd6l3kafvzqm77vnbpgr-84365574229.asia-southeast1.run.app",
       "https://ais-pre-enzd6l3kafvzqm77vnbpgr-84365574229.asia-southeast1.run.app",
       "http://localhost:3000"

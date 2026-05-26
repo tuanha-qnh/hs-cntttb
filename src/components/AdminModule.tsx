@@ -400,6 +400,7 @@ export default function AdminModule({
   });
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
 
   const handleSaveApiSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,6 +421,7 @@ export default function AdminModule({
     }
     setTestingConnection(true);
     setTestResult(null);
+    setTestError(null);
 
     try {
       let cleanUrl = apiConfigForm.workerUrl.trim();
@@ -436,16 +438,35 @@ export default function AdminModule({
 
       if (response.ok) {
         const data = await response.json();
-        if (data.status === 'connected') {
+        const isConnected = data.status === 'connected' || 
+                            data.status === 'Hệ thống kết nối tốt!' || 
+                            (data.status && typeof data.status === 'string' && (
+                              data.status.toLowerCase().includes('kết nối tốt') || 
+                              data.status.toLowerCase().includes('connected')
+                            ));
+        if (isConnected) {
           setTestResult('success');
         } else {
           setTestResult('failed');
+          setTestError('Máy chủ phản hồi thành công nhưng dữ liệu trả về sai cấu trúc hoặc không có trạng thái kết nối hợp lệ.');
         }
       } else {
         setTestResult('failed');
+        if (response.status === 401) {
+          setTestError('Lỗi 401 Unauthorized: API Secret Token (x-api-secret) không hợp lệ hoặc không khớp với khóa bảo mật trên Cloudflare Worker.');
+        } else if (response.status === 404) {
+          setTestError('Lỗi 404 Not Found: Không tìm thấy API Endpoint "/api/test" kiểm tra kết nối. Vui lòng cập nhật đầy đủ mã nguồn cho File index.ts của Worker.');
+        } else {
+          setTestError(`Lỗi kết nối HTTP ${response.status}: ${response.statusText || 'Unknown Error'}`);
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       setTestResult('failed');
+      const msg = e?.message || String(e);
+      setTestError(`Hệ thống không thể thực hiện yêu cầu kết nối tới URL (Lỗi: "Failed to fetch"). Nguyên nhân thông dụng nhất:
+1. URL Worker không hợp lệ hoặc chưa được Deploy (thử truy cập trực tiếp URL trên Tab mới để kiểm tra).
+2. Lỗi CORS Policy trên Trình duyệt: Bạn đang truy cập từ tên miền hiện tại (${window.location.origin}) nhưng CORS ở phía Cloudflare Worker hoặc R2 Bucket chưa cấp phép cho tên miền này.
+Chi tiết báo lỗi kỹ thuật: ${msg}`);
     } finally {
       setTestingConnection(false);
     }
@@ -805,61 +826,90 @@ export default function AdminModule({
               </div>
 
               {/* Status Connection check box */}
-              <div className="flex items-center justify-between border border-slate-200 p-4 bg-slate-50/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex h-3 w-3">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      testResult === 'success' ? 'bg-emerald-400' : 'bg-red-400'
-                    }`}></span>
-                    <span className={`relative inline-flex rounded-full h-3 w-3 ${
-                      testResult === 'success' ? 'bg-emerald-500' : 'bg-red-500'
-                    }`}></span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800 font-sans">Kiểm thử trạng thái mạng: </span>
-                    <span className="text-xs font-extrabold text-slate-900 font-sans">
-                      {testResult === 'success' ? (
-                        <span className="text-emerald-600">ĐÃ THÔNG SUỐT (Liên kết với đám mây sẳn sàng)</span>
-                      ) : (
-                        <span className="text-slate-500">Chờ kết nối kiểm thử</span>
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between border border-slate-200 p-4 bg-slate-50/50 rounded-xl gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex h-3.5 w-3.5">
+                      {testResult === 'success' && (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                        </>
                       )}
-                    </span>
+                      {testResult === 'failed' && (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+                        </>
+                      )}
+                      {testResult === null && (
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-slate-400"></span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 font-sans">Kiểm thử trạng thái mạng: </span>
+                      <span className="text-xs font-extrabold font-sans">
+                        {testResult === 'success' && (
+                          <span className="text-emerald-600 font-bold">ĐÃ THÔNG SUỐT (Liên kết với đám mây sẵn sàng)</span>
+                        )}
+                        {testResult === 'failed' && (
+                          <span className="text-rose-600 font-bold">KẾT NỐI THẤT BẠI (Vui lòng kiểm tra lỗi bên dưới)</span>
+                        )}
+                        {testResult === null && (
+                          <span className="text-slate-500 font-medium">CHƯA PING KIỂM THỬ (Bấm nút bên phải để kiểm thử)</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={testingConnection}
+                      onClick={triggerTestConnection}
+                      className="px-4 py-2 bg-[#005BAA]/10 hover:bg-[#005BAA]/20 text-[#005BAA] font-bold text-xs rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {testingConnection ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Đang kết nối...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5" />
+                          Ping Test kết nối
+                        </>
+                      )}
+                    </button>
+
+                    <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                      <input
+                        id="checkbox-enable-cloudflare"
+                        type="checkbox"
+                        checked={apiConfigForm.enabled}
+                        onChange={(e) => setApiConfigForm({ ...apiConfigForm, enabled: e.target.checked })}
+                        className="w-4 h-4 text-[#005BAA] focus:ring-blue-100 border-slate-300 rounded cursor-pointer"
+                      />
+                      <label htmlFor="checkbox-enable-cloudflare" className="text-xs font-semibold text-slate-700 font-sans select-none cursor-pointer">
+                        Chuyển sang Cơ chế Trực tuyến 100%
+                      </label>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={testingConnection}
-                    onClick={triggerTestConnection}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {testingConnection ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Đang Ping...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" />
-                        Ping Test kết nối
-                      </>
-                    )}
-                  </button>
-
-                  <div className="flex items-center gap-2 border-l pl-4 ml-2">
-                    <input
-                      id="checkbox-enable-cloudflare"
-                      type="checkbox"
-                      checked={apiConfigForm.enabled}
-                      onChange={(e) => setApiConfigForm({ ...apiConfigForm, enabled: e.target.checked })}
-                      className="w-4 h-4 text-[#005BAA] focus:ring-blue-100 border-slate-300 rounded"
-                    />
-                    <label htmlFor="checkbox-enable-cloudflare" className="text-xs font-semibold text-slate-700 font-sans select-none cursor-pointer">
-                      Chuyển sang Cơ chế Trực tuyến 100%
-                    </label>
+                {testResult === 'failed' && testError && (
+                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-2 text-left">
+                    <div className="flex items-center gap-2 text-rose-800 font-bold text-xs font-sans">
+                      <span className="text-base">⚠️</span> LỖI CHI TIẾT KHI KẾT NỐI CLOUDFLARE:
+                    </div>
+                    <p className="text-xs text-rose-700 whitespace-pre-line font-mono leading-relaxed bg-white/60 p-3 rounded-lg border border-rose-100 overflow-x-auto">
+                      {testError}
+                    </p>
+                    <div className="text-[11px] text-slate-500 leading-relaxed font-sans mt-2">
+                      💡 <strong>Mẹo khắc phục quan trọng nhất:</strong> Dự án của bạn đang được truy cập tại địa chỉ nguồn <code className="bg-slate-100 font-mono text-slate-800 px-1 py-0.5 rounded">{window.location.origin}</code>. Vui lòng cập nhật cấu hình <strong>CORS Policy</strong> của Cloudflare R2 Bucket để chắc chắn cho phép tên miền trên truy cập dữ liệu. Bạn có thể xem mã cấu hình CORS chuẩn có trong tab <strong>"Cầm tay chỉ việc / Hướng dẫn setup và mã nguồn Cloudflare"</strong> ở thanh tiêu đề trên cùng.
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-2 border-t mt-4">
