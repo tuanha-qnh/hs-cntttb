@@ -89,8 +89,37 @@ export default function App() {
   });
 
   const [cloudflareConfig, setCloudflareConfig] = useState<CloudflareConfig>(() => {
+    const envUrl = (import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL || '';
+    const envSecret = (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET || '';
+    
     const saved = localStorage.getItem('vnpt_cloudflare');
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // If environment variables exist, they always override/fallback to establish immediate connection
+        return {
+          enabled: parsed.enabled || !!(envUrl && envSecret),
+          workerUrl: envUrl || parsed.workerUrl || '',
+          apiSecret: envSecret || parsed.apiSecret || '',
+          status: parsed.status || 'disconnected',
+          lastTested: parsed.lastTested || null,
+        };
+      } catch {
+        // Fall through
+      }
+    }
+
+    if (envUrl && envSecret) {
+      return {
+        enabled: true,
+        workerUrl: envUrl,
+        apiSecret: envSecret,
+        status: 'connected',
+        lastTested: new Date().toISOString(),
+      };
+    }
+
+    return {
       enabled: false,
       workerUrl: '',
       apiSecret: '',
@@ -107,28 +136,30 @@ export default function App() {
   // Quick Cloudflare D1 Connection states directly from Login Screen
   const [showLoginCloudConfig, setShowLoginCloudConfig] = useState(false);
   const [loginWorkerUrl, setLoginWorkerUrl] = useState(() => {
+    const envUrl = (import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL || '';
     const saved = localStorage.getItem('vnpt_cloudflare');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.workerUrl || '';
+        return envUrl || parsed.workerUrl || '';
       } catch {
-        return '';
+        return envUrl;
       }
     }
-    return '';
+    return envUrl;
   });
   const [loginApiSecret, setLoginApiSecret] = useState(() => {
+    const envSecret = (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET || '';
     const saved = localStorage.getItem('vnpt_cloudflare');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.apiSecret || '';
+        return envSecret || parsed.apiSecret || '';
       } catch {
-        return '';
+        return envSecret;
       }
     }
-    return '';
+    return envSecret;
   });
   const [loginCloudStatus, setLoginCloudStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [loginCloudError, setLoginCloudError] = useState('');
