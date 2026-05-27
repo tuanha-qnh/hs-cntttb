@@ -8,6 +8,7 @@ import { BookOpen, Database, HardDrive, Cpu, Key, CheckCircle, Copy, Terminal } 
 
 export default function InteractiveGuide() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [workerTab, setWorkerTab] = useState<'js' | 'ts'>('js');
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -76,12 +77,248 @@ CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
     "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"],
     "AllowedHeaders": ["*"],
     "ExposeHeaders": ["ETag", "Content-Length"],
-    "MaxAgeSeconds": 86400
+    "MaxAgeSeconds": 86450
   }
 ]`;
 
-  const workerCode = `/**
- * Cloudflare Worker Backend cho Hệ thống lưu trữ VinaPhone TTTB
+  const workerCodeJs = `/**
+ * Cloudflare Worker Backend cho Hệ thống lưu trữ VinaPhone TTTB (Mã JavaScript thuần)
+ * Sao chép mã này dán trực tiếp vào trình soạn thảo Web của Cloudflare (worker.js)
+ */
+
+export default {
+  async fetch(request, env) {
+    // Xử lý CORS kích hoạt cho phép Frontend upload từ mọi nguồn
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-secret, *",
+      "Access-Control-Max-Age": "86400",
+    };
+
+    // 1. Thao tác trước nhất: Trả về CORS ngay lập tức cho OPTIONS preflight request
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    const url = new URL(request.url);
+    const rawPath = url.pathname;
+    
+    // Chuẩn hóa path: Xóa ký tự gạch chéo cuối cùng để so khớp tin cậy
+    const path = rawPath.endsWith("/") && rawPath !== "/" ? rawPath.slice(0, -1) : rawPath;
+
+    // Định nghĩa các biến logic định tuyến linh hoạt hỗ trợ cả có /api/ hoặc không có
+    const isSubscribersPath = path === "/api/subscribers" || path === "/subscribers";
+    const isUnitsPath = path === "/api/units" || path === "/units";
+    const isUsersPath = path === "/api/users" || path === "/users";
+    const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
+    const isTestPath = path === "/api/test" || path === "/test";
+
+    // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
+    try {
+      // Xác thực API Key bảo mật nâng cao (Bỏ qua xác thực cho các yêu cầu xem/tải ảnh công khai qua GET để thẻ <img> hiển thị được)
+      const isFileGet = isFilesPath && request.method === "GET";
+      const clientSecret = request.headers.get("x-api-secret") || url.searchParams.get("secret");
+      if (!isFileGet && env.API_SECRET && clientSecret !== env.API_SECRET) {
+        return new Response(JSON.stringify({ error: "Xác thực không hợp lệ. Vui lòng kiểm tra API Secret trong cấu hình hệ thống máy bạn." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Kiểm tra cấu hình ràng buộc tài nguyên Cloudflare bảo vệ chống Crash ngoài ý muốn
+      if (!env.DB) {
+        return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Cơ sở dữ liệu D1 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: DB)." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      if (!env.R2_BUCKET) {
+        return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Object Storage R2 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: R2_BUCKET)." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 1. Endpoint: Lấy danh sách thuê bao (TRA CỨU)
+      if (isSubscribersPath && request.method === "GET") {
+        const query = url.searchParams.get("query") || "";
+        let result;
+        
+        if (query) {
+          result = await env.DB.prepare(
+            "SELECT * FROM subscribers WHERE phoneNumber LIKE ?1 OR idNumber LIKE ?1 OR fullName LIKE ?1 ORDER BY createdAt DESC"
+          ).bind(\`%\${query}%\`).all();
+        } else {
+          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC LIMIT 100").all();
+        }
+
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 2. Endpoint: Thêm mới thuê bao và upload ảnh lên R2
+      if (isSubscribersPath && request.method === "POST") {
+        const data = await request.json();
+        const { id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageBase64 } = data;
+
+        if (!phoneNumber || !fullName || !idNumber || !imageBase64) {
+          return new Response(JSON.stringify({ error: "Dữ liệu bắt buộc bị thiếu." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Tải cấu dữ liệu Base64 an toàn hỗ trợ mọi định dạng ảnh chụp
+        let base64Data = imageBase64;
+        let mimeType = "image/jpeg";
+        if (imageBase64.includes(";base64,")) {
+          const parts = imageBase64.split(";base64,");
+          mimeType = parts[0].split(":")[1] || "image/jpeg";
+          base64Data = parts[1];
+        }
+
+        // Chuyển Base64 thành Uint8Array
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Upload trực tiếp lên Cloudflare R2
+        const r2FileName = \`tttb/\${id}_\${phoneNumber}.jpg\`;
+        await env.R2_BUCKET.put(r2FileName, bytes, {
+          httpMetadata: { contentType: mimeType }
+        });
+
+        // Tạo public URL thông qua Worker proxy
+        const imageUrl = \`\${url.origin}/api/files/\${r2FileName}\`;
+
+        // Ghi nhận thông tin vào cơ sở dữ liệu Cloudflare D1
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO subscribers (id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+        ).bind(id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageUrl).run();
+
+        return new Response(JSON.stringify({ success: true, id, imageUrl }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 3. Endpoint: Xem và tải ảnh từ Cloudflare R2
+      if (isFilesPath && request.method === "GET") {
+        const fileKey = path.startsWith("/api/files/") 
+          ? path.replace("/api/files/", "") 
+          : path.replace("/files/", "");
+
+        const object = await env.R2_BUCKET.get(fileKey);
+
+        if (object === null) {
+          return new Response("Không tìm thấy tệp ảnh trong bộ lưu trữ Cloudflare R2.", { 
+            status: 404,
+            headers: corsHeaders
+          });
+        }
+
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+        headers.set("etag", object.httpEtag);
+
+        return new Response(object.body, { headers });
+      }
+
+      // 4. Endpoint: Lấy danh sách Đơn vị (GET UNITS)
+      if (isUnitsPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM units ORDER BY id ASC").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 5. Endpoint: Đồng bộ hóa Đơn vị (POST UNITS)
+      if (isUnitsPath && request.method === "POST") {
+        const { action, unit } = await request.json();
+        if (!unit || !unit.id) {
+          return new Response(JSON.stringify({ error: "Tham số đơn vị không hợp lệ." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (action === "delete") {
+          await env.DB.prepare("DELETE FROM units WHERE id = ?1").bind(unit.id).run();
+        } else {
+          // "create" hoặc "update"
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO units (id, name, parentId) VALUES (?1, ?2, ?3)"
+          ).bind(unit.id, unit.name, unit.parentId).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 6. Endpoint: Lấy danh sách Nhân sự (GET USERS)
+      if (isUsersPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM users ORDER BY id ASC").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7. Endpoint: Đồng bộ hóa Nhân sự (POST USERS)
+      if (isUsersPath && request.method === "POST") {
+        const { action, user = {} } = await request.json();
+        if (!user || !user.id || !user.username) {
+          return new Response(JSON.stringify({ error: "Tham số tài khoản không hợp lệ." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (action === "delete") {
+          await env.DB.prepare("DELETE FROM users WHERE id = ?1").bind(user.id).run();
+        } else {
+          // "create" hoặc "update"
+          const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
+          const userPassword = user.password || "Vnpt@2026";
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 8. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
+      if (isTestPath && request.method === "GET") {
+        return new Response(JSON.stringify({ status: "connected", db: "D1", storage: "R2", time: new Date().toISOString() }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "Endpoint hoặc phương thức HTTP không tồn tại trên Cloudflare Worker của bạn." }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+
+    } catch (err) {
+      return new Response(JSON.stringify({ error: "Lỗi thực thi Worker: " + err.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+  }
+};`;
+
+  const workerCodeTs = `/**
+ * Cloudflare Worker Backend cho Hệ thống lưu trữ VinaPhone TTTB (Mã nguồn TypeScript)
  * Hỗ trợ lưu trữ Metadata vào Cloudflare D1 (Subscribers, Units, Users) và Ảnh lên Cloudflare R2
  */
 
@@ -100,43 +337,56 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-secret, *",
       "Access-Control-Max-Age": "86400",
     };
 
+    // 1. Thao tác trước nhất: Trả về CORS ngay lập tức cho OPTIONS preflight request
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
 
     const url = new URL(request.url);
-    const path = url.pathname;
+    const rawPath = url.pathname;
+    
+    // Chuẩn hóa path: Xóa ký tự gạch chéo cuối cùng để so khớp tin cậy
+    const path = rawPath.endsWith("/") && rawPath !== "/" ? rawPath.slice(0, -1) : rawPath;
 
-    // Xác thực API Key bảo mật nâng cao
-    const clientSecret = request.headers.get("x-api-secret") || url.searchParams.get("secret");
-    if (env.API_SECRET && clientSecret !== env.API_SECRET) {
-      return new Response(JSON.stringify({ error: "Xác thực không hợp lệ. Vui lòng kiểm tra API Secret trong cấu hình." }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
+    // Định nghĩa các biến logic định tuyến linh hoạt hỗ trợ cả có /api/ hoặc không có
+    const isSubscribersPath = path === "/api/subscribers" || path === "/subscribers";
+    const isUnitsPath = path === "/api/units" || path === "/units";
+    const isUsersPath = path === "/api/users" || path === "/users";
+    const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
+    const isTestPath = path === "/api/test" || path === "/test";
 
-    // Kiểm tra cấu hình ràng buộc tài nguyên Cloudflare bảo vệ chống Crash ngoài ý muốn
-    if (!env.DB) {
-      return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Cơ sở dữ liệu D1 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: DB)." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-    if (!env.R2_BUCKET) {
-      return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Object Storage R2 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: R2_BUCKET)." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
+    // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
     try {
+      // Xác thực API Key bảo mật nâng cao (Bỏ qua xác thực cho các yêu cầu xem/tải ảnh công khai qua GET để thẻ <img> hiển thị được)
+      const isFileGet = isFilesPath && request.method === "GET";
+      const clientSecret = request.headers.get("x-api-secret") || url.searchParams.get("secret");
+      if (!isFileGet && env.API_SECRET && clientSecret !== env.API_SECRET) {
+        return new Response(JSON.stringify({ error: "Xác thực không hợp lệ. Vui lòng kiểm tra API Secret trong cấu hình." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Kiểm tra cấu hình ràng buộc tài nguyên Cloudflare bảo vệ chống Crash ngoài ý muốn
+      if (!env.DB) {
+        return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Cơ sở dữ liệu D1 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: DB)." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      if (!env.R2_BUCKET) {
+        return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Object Storage R2 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: R2_BUCKET)." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
       // 1. Endpoint: Lấy danh sách thuê bao (TRA CỨU)
-      if (path === "/api/subscribers" && request.method === "GET") {
+      if (isSubscribersPath && request.method === "GET") {
         const query = url.searchParams.get("query") || "";
         let result;
         
@@ -154,7 +404,7 @@ export default {
       }
 
       // 2. Endpoint: Thêm mới thuê bao và upload ảnh lên R2
-      if (path === "/api/subscribers" && request.method === "POST") {
+      if (isSubscribersPath && request.method === "POST") {
         const data = await request.json() as any;
         const { id, phoneNumber, fullName, idNumber, createdAt, createdBy, creatorName, unitId, unitName, imageBase64 } = data;
 
@@ -165,12 +415,16 @@ export default {
           });
         }
 
-        // Tách header của Base64
-        const parts = imageBase64.split(";base64,");
-        const mimeType = parts[0].split(":")[1] || "image/jpeg";
-        const base64Data = parts[1];
-        
-        // Chuyển Base64 thành Binary Buffer
+        // Tải cấu dữ liệu Base64 an toàn hỗ trợ mọi định dạng ảnh chụp
+        let base64Data = imageBase64;
+        let mimeType = "image/jpeg";
+        if (imageBase64.includes(";base64,")) {
+          const parts = imageBase64.split(";base64,");
+          mimeType = parts[0].split(":")[1] || "image/jpeg";
+          base64Data = parts[1];
+        }
+
+        // Chuyển Base64 thành Binary Buffer một cách an toàn và chống quá tải CPU
         const binaryString = atob(base64Data);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -184,7 +438,7 @@ export default {
           httpMetadata: { contentType: mimeType }
         });
 
-        // Tạo public URL giả định hoặc thông qua Worker proxy
+        // Tạo public URL thông qua Worker proxy
         const imageUrl = \`\${url.origin}/api/files/\${r2FileName}\`;
 
         // Ghi nhận thông tin vào cơ sở dữ liệu Cloudflare D1
@@ -198,24 +452,31 @@ export default {
       }
 
       // 3. Endpoint: Xem và tải ảnh từ Cloudflare R2
-      if (path.startsWith("/api/files/") && request.method === "GET") {
-        const fileKey = path.replace("/api/files/", "");
+      if (isFilesPath && request.method === "GET") {
+        const fileKey = path.startsWith("/api/files/") 
+          ? path.replace("/api/files/", "") 
+          : path.replace("/files/", "");
+
         const object = await env.R2_BUCKET.get(fileKey);
 
         if (object === null) {
-          return new Response("Không tìm thấy tệp ảnh trong bộ lưu trữ Cloudflare R2.", { status: 404 });
+          return new Response("Không tìm thấy tệp ảnh trong bộ lưu trữ Cloudflare R2.", { 
+            status: 404,
+            headers: corsHeaders
+          });
         }
 
         const headers = new Headers();
         object.writeHttpMetadata(headers);
         headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
         headers.set("etag", object.httpEtag);
 
         return new Response(object.body, { headers });
       }
 
       // 4. Endpoint: Lấy danh sách Đơn vị (GET UNITS)
-      if (path === "/api/units" && request.method === "GET") {
+      if (isUnitsPath && request.method === "GET") {
         const result = await env.DB.prepare("SELECT * FROM units ORDER BY id ASC").all();
         return new Response(JSON.stringify(result.results), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -223,7 +484,7 @@ export default {
       }
 
       // 5. Endpoint: Đồng bộ hóa Đơn vị (POST UNITS)
-      if (path === "/api/units" && request.method === "POST") {
+      if (isUnitsPath && request.method === "POST") {
         const { action, unit } = await request.json() as any;
         if (!unit || !unit.id) {
           return new Response(JSON.stringify({ error: "Tham số đơn vị không hợp lệ." }), {
@@ -247,7 +508,7 @@ export default {
       }
 
       // 6. Endpoint: Lấy danh sách Nhân sự (GET USERS)
-      if (path === "/api/users" && request.method === "GET") {
+      if (isUsersPath && request.method === "GET") {
         const result = await env.DB.prepare("SELECT * FROM users ORDER BY id ASC").all();
         return new Response(JSON.stringify(result.results), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -255,7 +516,7 @@ export default {
       }
 
       // 7. Endpoint: Đồng bộ hóa Nhân sự (POST USERS)
-      if (path === "/api/users" && request.method === "POST") {
+      if (isUsersPath && request.method === "POST") {
         const { action, user } = await request.json() as any;
         if (!user || !user.id || !user.username) {
           return new Response(JSON.stringify({ error: "Tham số tài khoản không hợp lệ." }), {
@@ -281,19 +542,19 @@ export default {
       }
 
       // 8. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
-      if (path === "/api/test" && request.method === "GET") {
+      if (isTestPath && request.method === "GET") {
         return new Response(JSON.stringify({ status: "connected", db: "D1", storage: "R2", time: new Date().toISOString() }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
-      return new Response(JSON.stringify({ error: "Endpoint không tồn tại." }), {
+      return new Response(JSON.stringify({ error: "Endpoint hoặc phương thức HTTP không tồn tại trên Cloudflare Worker của bạn." }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
 
     } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message }), {
+      return new Response(JSON.stringify({ error: "Lỗi thực thi Worker: " + err.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
@@ -527,16 +788,32 @@ INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin,
 
       {/* Cloudflare Worker Source Code Block */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
-        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full font-mono">
               WORKER API
             </span>
-            <span className="text-xs font-mono text-slate-600">index.ts (TypeScript / ES Module)</span>
+            <div className="flex bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
+              <button
+                type="button"
+                onClick={() => setWorkerTab('js')}
+                className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition cursor-pointer select-none ${workerTab === 'js' ? 'bg-white text-[#005BAA] shadow-xs font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Mã JavaScript (Khuyên dùng - Dán Web)
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkerTab('ts')}
+                className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition cursor-pointer select-none ${workerTab === 'ts' ? 'bg-white text-[#005BAA] shadow-xs font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Mã TypeScript CLI
+              </button>
+            </div>
           </div>
           <button
-            onClick={() => copyToClipboard(workerCode, 'worker')}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#005BAA] transition-colors cursor-pointer"
+            type="button"
+            onClick={() => copyToClipboard(workerTab === 'js' ? workerCodeJs : workerCodeTs, 'worker')}
+            className="flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-[#005BAA] transition-colors cursor-pointer self-end sm:self-auto bg-white sm:bg-transparent px-3 py-1.5 sm:p-0 rounded border sm:border-0 border-slate-200"
           >
             {copiedId === 'worker' ? (
               <>
@@ -546,13 +823,13 @@ INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin,
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>Sao chép Code Worker</span>
+                <span>Sao chép Mã nguồn ({workerTab === 'js' ? 'JS' : 'TS'})</span>
               </>
             )}
           </button>
         </div>
-        <div className="p-4 bg-slate-950 font-mono text-xs text-slate-200 overflow-x-auto max-h-96">
-          <pre>{workerCode}</pre>
+        <div className="p-4 bg-slate-950 font-mono text-xs text-slate-200 overflow-x-auto max-h-[500px]">
+          <pre>{workerTab === 'js' ? workerCodeJs : workerCodeTs}</pre>
         </div>
       </div>
 

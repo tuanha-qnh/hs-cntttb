@@ -310,9 +310,25 @@ export default function App() {
     localStorage.setItem('vnpt_cloudflare', JSON.stringify(cloudflareConfig));
   }, [cloudflareConfig]);
 
-  // Load system-wide configurations from full-stack Node server on startup
+  // Unified system config loader and Cloudflare background auto-sync hook (runs on F5/load)
   useEffect(() => {
-    const loadSystemConfig = async () => {
+    const initializeAndAutoSync = async () => {
+      // 1. Initial config evaluation
+      let activeUrl = (import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL || '';
+      let activeSecret = (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET || '';
+      let isEnabled = false;
+
+      const saved = localStorage.getItem('vnpt_cloudflare');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.workerUrl) activeUrl = parsed.workerUrl;
+          if (parsed.apiSecret) activeSecret = parsed.apiSecret;
+          isEnabled = parsed.enabled ?? !!(activeUrl && activeSecret);
+        } catch {}
+      }
+
+      // 2. Fetch VPS backend system-config if applicable to check if overrides exist
       const hostname = window.location.hostname;
       const hasLocalBackend = 
         hostname === 'localhost' || 
@@ -320,24 +336,92 @@ export default function App() {
         hostname === '0.0.0.0' || 
         hostname.endsWith('.run.app');
 
-      if (!hasLocalBackend) {
-        // Pure static client environment (Vercel, GitHub Pages) - skip VPS backend routing
-        return;
+      if (hasLocalBackend) {
+        try {
+          const res = await fetch('/api/system-config');
+          if (res.ok) {
+            const sysConfig = await res.json();
+            if (sysConfig && sysConfig.workerUrl) {
+              activeUrl = sysConfig.workerUrl;
+              activeSecret = sysConfig.apiSecret;
+              isEnabled = sysConfig.enabled ?? true;
+              
+              setCloudflareConfig(sysConfig);
+              localStorage.setItem('vnpt_cloudflare', JSON.stringify(sysConfig));
+            }
+          }
+        } catch (err) {
+          console.warn('Lỗi load system config từ server VPS:', err);
+        }
       }
 
-      try {
-        const res = await fetch('/api/system-config');
-        if (res.ok) {
-          const sysConfig = await res.json();
-          if (sysConfig && sysConfig.workerUrl) {
-            setCloudflareConfig(sysConfig);
+      // 3. Trigger background Cloud Sync if enabled, pulling latest units, users, and files
+      if (isEnabled && activeUrl && activeSecret) {
+        console.log('🔄 [Auto-Sync] Bắt đầu tự động tải dữ liệu từ Cloudflare...');
+        try {
+          let cleanUrl = activeUrl.trim();
+          if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.slice(0, -1);
           }
+
+          // Fetch users (accounts)
+          const usersRes = await fetch(`${cleanUrl}/api/users`, {
+            headers: { 'x-api-secret': activeSecret }
+          });
+          if (usersRes.ok) {
+            const externalUsers = await usersRes.json();
+            if (Array.isArray(externalUsers) && externalUsers.length > 0) {
+              const parsedUsers = externalUsers.map((u: any) => ({
+                ...u,
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+              }));
+              setUsers(parsedUsers);
+              localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
+              
+              // Maintain current user fields update (in case password self-service sync updated fields)
+              const savedCurrentUser = localStorage.getItem('vnpt_current_user');
+              if (savedCurrentUser) {
+                const cur = JSON.parse(savedCurrentUser);
+                const updatedCur = parsedUsers.find((u: any) => u.id === cur.id || u.username === cur.username);
+                if (updatedCur) {
+                  setCurrentUser(updatedCur);
+                  localStorage.setItem('vnpt_current_user', JSON.stringify(updatedCur));
+                }
+              }
+            }
+          }
+
+          // Fetch units
+          const unitsRes = await fetch(`${cleanUrl}/api/units`, {
+            headers: { 'x-api-secret': activeSecret }
+          });
+          if (unitsRes.ok) {
+            const externalUnits = await unitsRes.json();
+            if (Array.isArray(externalUnits) && externalUnits.length > 0) {
+              setUnits(externalUnits);
+              localStorage.setItem('vnpt_units', JSON.stringify(externalUnits));
+            }
+          }
+
+          // Fetch subscribers (hồ sơ lưu trữ)
+          const subsRes = await fetch(`${cleanUrl}/api/subscribers`, {
+            headers: { 'x-api-secret': activeSecret }
+          });
+          if (subsRes.ok) {
+            const externalSubs = await subsRes.json();
+            if (Array.isArray(externalSubs)) {
+              setSubscribers(externalSubs);
+              localStorage.setItem('vnpt_subscribers', JSON.stringify(externalSubs));
+            }
+          }
+
+          console.log('✓ [Auto-Sync] Đồng bộ dữ liệu thành công từ đám mây (Cloudflare D1).');
+        } catch (err) {
+          console.warn('⚠️ [Auto-Sync] Không thể tự động đồng bộ đám mây:', err);
         }
-      } catch (err) {
-        console.warn('Lỗi load system config từ server VPS:', err);
       }
     };
-    loadSystemConfig();
+    initializeAndAutoSync();
   }, []);
 
   const handleConfigChange = async (newConfig: CloudflareConfig) => {
@@ -855,6 +939,7 @@ export default function App() {
                 <input
                   required
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Nhập tối thiểu 6 ký tự"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -870,6 +955,7 @@ export default function App() {
                 <input
                   required
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Điền lại khớp hoàn toàn"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -929,6 +1015,7 @@ export default function App() {
                 <input
                   required
                   type="text"
+                  autoComplete="username"
                   placeholder="Ví dụ: tuanha / admin"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
@@ -944,7 +1031,8 @@ export default function App() {
                 <input
                   required
                   type="password"
-                  placeholder="Nhập Vnpt@2026 hoặc mật khẩu riêng"
+                  autoComplete="current-password"
+                  placeholder="Mật khẩu riêng"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
                   className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
@@ -1361,6 +1449,7 @@ export default function App() {
                   <label className="text-[11px] font-bold text-slate-600">Mật khẩu hiện tại</label>
                   <input
                     type="password"
+                    autoComplete="current-password"
                     placeholder="Nhập mật khẩu hiện tại"
                     value={selfCurrentPassword}
                     onChange={(e) => setSelfCurrentPassword(e.target.value)}
@@ -1372,6 +1461,7 @@ export default function App() {
                   <label className="text-[11px] font-bold text-slate-600">Mật khẩu mới</label>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
                     value={selfNewPassword}
                     onChange={(e) => setSelfNewPassword(e.target.value)}
@@ -1383,6 +1473,7 @@ export default function App() {
                   <label className="text-[11px] font-bold text-slate-600">Xác nhận mật khẩu mới</label>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Xác nhận mật khẩu mới"
                     value={selfConfirmPassword}
                     onChange={(e) => setSelfConfirmPassword(e.target.value)}
