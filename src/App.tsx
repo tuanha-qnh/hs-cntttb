@@ -74,18 +74,36 @@ const initialSubscribers: SubscriberRecord[] = [
 export default function App() {
   // Loaded reactive databases
   const [units, setUnits] = useState<Unit[]>(() => {
-    const saved = localStorage.getItem('vnpt_units');
-    return saved ? JSON.parse(saved) : initialUnits;
+    try {
+      const saved = localStorage.getItem('vnpt_units');
+      return saved ? JSON.parse(saved) : initialUnits;
+    } catch (e) {
+      console.error('Error parsing vnpt_units from localStorage, resetting:', e);
+      localStorage.removeItem('vnpt_units');
+      return initialUnits;
+    }
   });
 
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('vnpt_users');
-    return saved ? JSON.parse(saved) : initialUsers;
+    try {
+      const saved = localStorage.getItem('vnpt_users');
+      return saved ? JSON.parse(saved) : initialUsers;
+    } catch (e) {
+      console.error('Error parsing vnpt_users from localStorage, resetting:', e);
+      localStorage.removeItem('vnpt_users');
+      return initialUsers;
+    }
   });
 
   const [subscribers, setSubscribers] = useState<SubscriberRecord[]>(() => {
-    const saved = localStorage.getItem('vnpt_subscribers');
-    return saved ? JSON.parse(saved) : initialSubscribers;
+    try {
+      const saved = localStorage.getItem('vnpt_subscribers');
+      return saved ? JSON.parse(saved) : initialSubscribers;
+    } catch (e) {
+      console.error('Error parsing vnpt_subscribers from localStorage, resetting:', e);
+      localStorage.removeItem('vnpt_subscribers');
+      return initialSubscribers;
+    }
   });
 
   const [cloudflareConfig, setCloudflareConfig] = useState<CloudflareConfig>(() => {
@@ -177,8 +195,14 @@ export default function App() {
   const [passwordError, setPasswordError] = useState('');
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('vnpt_current_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('vnpt_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error('Error parsing vnpt_current_user from localStorage, resetting:', e);
+      localStorage.removeItem('vnpt_current_user');
+      return null;
+    }
   });
 
   // Navigation Panel Views
