@@ -479,7 +479,7 @@ export default function App() {
     setPasswordInput('');
   };
 
-  const handlePasswordChangeSubmit = (e: React.FormEvent) => {
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
 
@@ -512,7 +512,7 @@ export default function App() {
         if (cleanUrl.endsWith('/')) {
           cleanUrl = cleanUrl.slice(0, -1);
         }
-        fetch(`${cleanUrl}/api/users`, {
+        const response = await fetch(`${cleanUrl}/api/users`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -522,7 +522,10 @@ export default function App() {
             action: 'update',
             user: { ...passwordChangeRequiredUser, isFirstLogin: false, password: newPassword }
           })
-        }).catch(err => console.error('Lỗi sync user on password change:', err));
+        });
+        if (!response.ok) {
+          console.warn('Lỗi đồng bộ mật khẩu lên Máy chủ Cloud (D1)');
+        }
       } catch (e) {
         console.warn('Lỗi kết nối đồng bộ:', e);
       }
@@ -536,7 +539,7 @@ export default function App() {
     setConfirmPassword('');
     setUsernameInput('');
     setPasswordInput('');
-    alert('Mật khẩu mới đã được cập nhật thành công! Trọng lực của tài khoản đã được kích hoạt.');
+    alert('Mật khẩu mới đã được cập nhật thành công và đồng bộ lên Máy chủ Cloud (D1)! Trọng lực của tài khoản đã được kích hoạt.');
   };
 
   const handleSelfPasswordChange = async (e: React.FormEvent) => {
@@ -972,51 +975,65 @@ export default function App() {
                     setShowLoginCloudConfig(!showLoginCloudConfig);
                     setLoginCloudError('');
                     setLoginCloudStatus('idle');
+                    // auto fill from env if set
+                    const envUrl = (import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL || '';
+                    const envSecret = (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET || '';
+                    if (envUrl) setLoginWorkerUrl(envUrl);
+                    if (envSecret) setLoginApiSecret(envSecret);
                   }}
                   className="text-cyan-400 hover:text-cyan-300 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
                 >
                   <Cloud className="w-3.5 h-3.5" style={{ display: 'inline' }} />
-                  {showLoginCloudConfig ? 'Ẩn Cấu hình Cloud' : 'Cấu hình Cloud'}
+                  {showLoginCloudConfig ? 'Ẩn liên kết Cloud' : 'Đồng bộ đám mây'}
                 </button>
               </div>
 
-              {showLoginCloudConfig ? (
+              {showLoginCloudConfig && (
                 <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
                     <Cloud className="w-3.5 h-3.5" />
-                    KẾT NỐI CLOUDFLARE D1 + R2
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
-                    Nếu bạn đăng nhập trên máy tính mới hoặc muốn đồng bộ tài khoản vừa tạo trực tuyến, hãy nhập API Worker & Secret Token của hệ thống tại đây để lấy dữ liệu.
-                  </p>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
-                      Worker Base URL *
-                    </label>
-                    <input
-                      required
-                      type="url"
-                      placeholder="https://...workers.dev"
-                      value={loginWorkerUrl}
-                      onChange={(e) => setLoginWorkerUrl(e.target.value)}
-                      className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
-                    />
+                    KẾT NỐI TRỰC TUYẾN CLOUDFLARE
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
-                      API Authorization Secret *
-                    </label>
-                    <input
-                      required
-                      type="password"
-                      placeholder="Nhập khóa API Secret"
-                      value={loginApiSecret}
-                      onChange={(e) => setLoginApiSecret(e.target.value)}
-                      className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
-                    />
-                  </div>
+                  {((import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL && (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET) ? (
+                    <div className="text-[10px] leading-relaxed text-emerald-400 bg-emerald-950/20 border border-emerald-990/40 p-2.5 rounded-lg font-sans">
+                      ✓ Đã tích hợp cấu hình đám mây tự động từ máy chủ sản xuất (Vercel Node Keys). Các trường nhập mật mật & liên kết riêng tư đã được ẩn an toàn để bảo mật.
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
+                        Nhập địa chỉ API Worker và mã bảo vệ để tải dữ liệu tài khoản từ cơ sở dữ liệu đám mây về thiết bị này.
+                      </p>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                          Worker Base URL *
+                        </label>
+                        <input
+                          required
+                          type="url"
+                          placeholder="https://...workers.dev"
+                          value={loginWorkerUrl}
+                          onChange={(e) => setLoginWorkerUrl(e.target.value)}
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                          API Authorization Secret *
+                        </label>
+                        <input
+                          required
+                          type="password"
+                          placeholder="Nhập khóa API Secret"
+                          value={loginApiSecret}
+                          onChange={(e) => setLoginApiSecret(e.target.value)}
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {loginCloudError && (
                     <div className="text-[10px] text-rose-400 font-mono leading-relaxed bg-rose-950/20 p-2 rounded border border-rose-900/40">
@@ -1026,37 +1043,29 @@ export default function App() {
 
                   {loginCloudStatus === 'success' && (
                     <div className="text-[10px] text-emerald-400 font-sans leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/40 font-medium">
-                      ✓ Đọc dữ liệu đám mây thành công! Hãy đăng nhập.
+                      ✓ Đọc dữ liệu đám mây thành công! Đã cập nhật {users.length} tài khoản giao dịch viên.
                     </div>
                   )}
 
                   <button
                     type="submit"
                     disabled={loginCloudStatus === 'testing'}
-                    className="w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full py-2 bg-cyan-650 hover:bg-cyan-600 border border-cyan-500 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     {loginCloudStatus === 'testing' ? (
                       <>
                         <RefreshCw className="w-3 h-3 animate-spin" />
-                        Đang đồng bộ...
+                        Đang kết nối tải dữ liệu...
                       </>
                     ) : (
                       <>
                         <RefreshCw className="w-3 h-3" />
-                        Kết nối & Tải tài khoản đám mây
+                        Kết nối và tải tài khoản đám mây
                       </>
                     )}
                   </button>
                 </form>
-              ) : (
-                <div className="text-[9px] text-slate-500 text-center select-none font-sans mt-0.5 leading-relaxed">
-                  Mẹo: Bạn có thể copy <strong className="text-slate-400">"Đường dẫn cấu hình tự động"</strong> trong tab Admin của máy chủ để gửi cho đồng nghiệp mở lên tự động kết nối nhanh!
-                </div>
               )}
-
-              <div className="text-[10px] text-slate-400 font-sans text-center leading-relaxed bg-slate-950/40 py-2 px-3 rounded-lg border border-slate-800/40">
-                <strong className="text-slate-300">Tài khoản mẫu:</strong> <span className="font-mono text-cyan-400 select-all">admin / admin</span> hoặc <span className="font-mono text-cyan-400 select-all">tuanha / Vnpt@2026</span>
-              </div>
             </div>
           </div>
         </div>

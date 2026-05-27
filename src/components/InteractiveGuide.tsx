@@ -120,6 +120,20 @@ export default {
       });
     }
 
+    // Kiểm tra cấu hình ràng buộc tài nguyên Cloudflare bảo vệ chống Crash ngoài ý muốn
+    if (!env.DB) {
+      return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Cơ sở dữ liệu D1 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: DB)." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    if (!env.R2_BUCKET) {
+      return new Response(JSON.stringify({ error: "Lỗi cấu hình Worker: Chưa liên kết Object Storage R2 (Tên biến đặt trong Cloudflare Dashboard bắt buộc là: R2_BUCKET)." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     try {
       // 1. Endpoint: Lấy danh sách thuê bao (TRA CỨU)
       if (path === "/api/subscribers" && request.method === "GET") {
