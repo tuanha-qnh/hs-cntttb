@@ -104,6 +104,35 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   
+  // Quick Cloudflare D1 Connection states directly from Login Screen
+  const [showLoginCloudConfig, setShowLoginCloudConfig] = useState(false);
+  const [loginWorkerUrl, setLoginWorkerUrl] = useState(() => {
+    const saved = localStorage.getItem('vnpt_cloudflare');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.workerUrl || '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [loginApiSecret, setLoginApiSecret] = useState(() => {
+    const saved = localStorage.getItem('vnpt_cloudflare');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.apiSecret || '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [loginCloudStatus, setLoginCloudStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [loginCloudError, setLoginCloudError] = useState('');
+
   // User profile password change states for self-service
   const [isSelfPasswordModalOpen, setIsSelfPasswordModalOpen] = useState(false);
   const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
@@ -124,6 +153,90 @@ export default function App() {
   // Navigation Panel Views
   const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Automatically parse setup query parameters on load for device setup
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const workerUrlParam = params.get('workerUrl') || params.get('worker_url');
+    const apiSecretParam = params.get('apiSecret') || params.get('api_secret');
+
+    if (workerUrlParam && apiSecretParam) {
+      const decodedWorkerUrl = decodeURIComponent(workerUrlParam);
+      const decodedApiSecret = decodeURIComponent(apiSecretParam);
+
+      const newConfig: CloudflareConfig = {
+        enabled: true,
+        workerUrl: decodedWorkerUrl,
+        apiSecret: decodedApiSecret,
+        status: 'connected',
+        lastTested: new Date().toISOString()
+      };
+
+      setCloudflareConfig(newConfig);
+      localStorage.setItem('vnpt_cloudflare', JSON.stringify(newConfig));
+      setLoginWorkerUrl(decodedWorkerUrl);
+      setLoginApiSecret(decodedApiSecret);
+
+      // Clean query parameters from address bar
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+
+      const triggerAutoSyncOnLoad = async () => {
+        try {
+          let cleanUrl = decodedWorkerUrl.trim();
+          if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.slice(0, -1);
+          }
+
+          // 1. Sync subscribers list
+          const response = await fetch(`${cleanUrl}/api/subscribers`, {
+            headers: { 'x-api-secret': decodedApiSecret }
+          });
+          if (response.ok) {
+            const externalRecords = await response.json();
+            if (Array.isArray(externalRecords)) {
+              setSubscribers(externalRecords);
+              localStorage.setItem('vnpt_subscribers', JSON.stringify(externalRecords));
+            }
+          }
+
+          // 2. Sync units
+          const unitsResponse = await fetch(`${cleanUrl}/api/units`, {
+            headers: { 'x-api-secret': decodedApiSecret }
+          });
+          if (unitsResponse.ok) {
+            const externalUnits = await unitsResponse.json();
+            if (Array.isArray(externalUnits) && externalUnits.length > 0) {
+              setUnits(externalUnits);
+              localStorage.setItem('vnpt_units', JSON.stringify(externalUnits));
+            }
+          }
+
+          // 3. Sync logins (users)
+          const usersResponse = await fetch(`${cleanUrl}/api/users`, {
+            headers: { 'x-api-secret': decodedApiSecret }
+          });
+          if (usersResponse.ok) {
+            const externalUsers = await usersResponse.json();
+            if (Array.isArray(externalUsers) && externalUsers.length > 0) {
+              const parsedUsers = externalUsers.map((u: any) => ({
+                ...u,
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+              }));
+              setUsers(parsedUsers);
+              localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
+            }
+          }
+
+          alert('🔥 ĐỒNG BỘ TRỰC TUYẾN THÀNH CÔNG!\nTrình duyệt đã nạp cấu hình tự động Cloudflare D1 + R2.\nDữ liệu tài khoản giao dịch viên đã đồng bộ về máy. Bạn có thể đăng nhập ngay lập tức!');
+        } catch (err: any) {
+          alert('Cấu hình liên kết tự động thành công nhưng lỗi đồng bộ: ' + (err.message || err));
+        }
+      };
+
+      triggerAutoSyncOnLoad();
+    }
+  }, []);
 
   // Auto Synchronize database edits to localStorage
   useEffect(() => {
@@ -561,6 +674,95 @@ export default function App() {
   const unitsMap = getUnitsNameMap();
   const currentUnitName = currentUser ? unitsMap[currentUser.unitId] || 'VNPT Quảng Ninh' : 'VNPT Quảng Ninh';
 
+  // Handler for Cloud syncing from the Login UI (so new users on other browsers can instantly fetch DB configuration & pull user details)
+  const handleLoginCloudSync = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginWorkerUrl) {
+      setLoginCloudError('Vui lòng nhập Worker API URL.');
+      return;
+    }
+    setLoginCloudStatus('testing');
+    setLoginCloudError('');
+
+    try {
+      let cleanUrl = loginWorkerUrl.trim();
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+
+      // 1. Test connection
+      const testRes = await fetch(`${cleanUrl}/api/test`, {
+        method: 'GET',
+        headers: {
+          'x-api-secret': loginApiSecret.trim()
+        }
+      });
+
+      if (!testRes.ok) {
+        throw new Error(`Cloudflare báo lỗi HTTP ${testRes.status}. Vui lòng kiểm tra lại URL hoặc Token x-api-secret.`);
+      }
+
+      // 2. Fetch users
+      const usersRes = await fetch(`${cleanUrl}/api/users`, {
+        headers: {
+          'x-api-secret': loginApiSecret.trim()
+        }
+      });
+      if (!usersRes.ok) {
+        throw new Error('Không thể tải danh sách tài khoản từ Cloud D1.');
+      }
+      const externalUsers = await usersRes.json();
+      
+      const parsedUsers = externalUsers.map((u: any) => ({
+        ...u,
+        isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+      }));
+      setUsers(parsedUsers);
+      localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
+
+      // 3. Fetch units
+      const unitsRes = await fetch(`${cleanUrl}/api/units`, {
+        headers: {
+          'x-api-secret': loginApiSecret.trim()
+        }
+      });
+      if (unitsRes.ok) {
+        const externalUnits = await unitsRes.json();
+        setUnits(externalUnits);
+        localStorage.setItem('vnpt_units', JSON.stringify(externalUnits));
+      }
+
+      // 4. Fetch subscribers
+      const subsRes = await fetch(`${cleanUrl}/api/subscribers`, {
+        headers: {
+          'x-api-secret': loginApiSecret.trim()
+        }
+      });
+      if (subsRes.ok) {
+        const externalSubs = await subsRes.json();
+        setSubscribers(externalSubs);
+        localStorage.setItem('vnpt_subscribers', JSON.stringify(externalSubs));
+      }
+
+      const newConfig: CloudflareConfig = {
+        enabled: true,
+        workerUrl: cleanUrl,
+        apiSecret: loginApiSecret.trim(),
+        status: 'connected',
+        lastTested: new Date().toISOString()
+      };
+      setCloudflareConfig(newConfig);
+      localStorage.setItem('vnpt_cloudflare', JSON.stringify(newConfig));
+
+      setLoginCloudStatus('success');
+      setShowLoginCloudConfig(false);
+      alert('Đồng bộ Cloudflare trực tuyến thành công! Toàn bộ danh mục phòng ban và tài khoản giao dịch viên đã được kéo về thiết bị này.');
+    } catch (err: any) {
+      setLoginCloudStatus('failed');
+      setLoginCloudError(err.message || 'Lỗi không xác định khi liên kết.');
+    }
+  };
+
   // ----------------------------------------------------------------------
   // SCENARIO RENDER: LOGIN & RESET SCREENS
   // ----------------------------------------------------------------------
@@ -705,9 +907,101 @@ export default function App() {
               </button>
             </form>
 
-            <div className="border-t border-slate-800/80 pt-4 text-[10px] text-slate-500 font-sans text-center leading-relaxed">
-              Hệ thống nội vụ VNPT dành cho giao dịch viên Quảng Ninh.<br />
-              <strong className="text-slate-400">Tài khoản mẫu:</strong> <span className="font-mono text-cyan-400">admin / admin</span> hoặc <span className="font-mono text-cyan-400">tuanha / Vnpt@2026</span>
+            {/* Quick Cloud Connection Setup for Remote Devices / Browsers to pull database */}
+            <div className="border-t border-slate-800/80 pt-4 space-y-3">
+              <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans">
+                <span>Hệ thống nội vụ VNPT Quảng Ninh</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLoginCloudConfig(!showLoginCloudConfig);
+                    setLoginCloudError('');
+                    setLoginCloudStatus('idle');
+                  }}
+                  className="text-cyan-400 hover:text-cyan-300 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
+                >
+                  <Cloud className="w-3.5 h-3.5" style={{ display: 'inline' }} />
+                  {showLoginCloudConfig ? 'Ẩn Cấu hình Cloud' : 'Cấu hình Cloud'}
+                </button>
+              </div>
+
+              {showLoginCloudConfig ? (
+                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Cloud className="w-3.5 h-3.5" />
+                    KẾT NỐI CLOUDFLARE D1 + R2
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
+                    Nếu bạn đăng nhập trên máy tính mới hoặc muốn đồng bộ tài khoản vừa tạo trực tuyến, hãy nhập API Worker & Secret Token của hệ thống tại đây để lấy dữ liệu.
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                      Worker Base URL *
+                    </label>
+                    <input
+                      required
+                      type="url"
+                      placeholder="https://...workers.dev"
+                      value={loginWorkerUrl}
+                      onChange={(e) => setLoginWorkerUrl(e.target.value)}
+                      className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                      API Authorization Secret *
+                    </label>
+                    <input
+                      required
+                      type="password"
+                      placeholder="Nhập khóa API Secret"
+                      value={loginApiSecret}
+                      onChange={(e) => setLoginApiSecret(e.target.value)}
+                      className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                    />
+                  </div>
+
+                  {loginCloudError && (
+                    <div className="text-[10px] text-rose-400 font-mono leading-relaxed bg-rose-950/20 p-2 rounded border border-rose-900/40">
+                      ⚠️ {loginCloudError}
+                    </div>
+                  )}
+
+                  {loginCloudStatus === 'success' && (
+                    <div className="text-[10px] text-emerald-400 font-sans leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/40 font-medium">
+                      ✓ Đọc dữ liệu đám mây thành công! Hãy đăng nhập.
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loginCloudStatus === 'testing'}
+                    className="w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    {loginCloudStatus === 'testing' ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        Đang đồng bộ...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-3 h-3" />
+                        Kết nối & Tải tài khoản đám mây
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div className="text-[9px] text-slate-500 text-center select-none font-sans mt-0.5 leading-relaxed">
+                  Mẹo: Bạn có thể copy <strong className="text-slate-400">"Đường dẫn cấu hình tự động"</strong> trong tab Admin của máy chủ để gửi cho đồng nghiệp mở lên tự động kết nối nhanh!
+                </div>
+              )}
+
+              <div className="text-[10px] text-slate-400 font-sans text-center leading-relaxed bg-slate-950/40 py-2 px-3 rounded-lg border border-slate-800/40">
+                <strong className="text-slate-300">Tài khoản mẫu:</strong> <span className="font-mono text-cyan-400 select-all">admin / admin</span> hoặc <span className="font-mono text-cyan-400 select-all">tuanha / Vnpt@2026</span>
+              </div>
             </div>
           </div>
         </div>

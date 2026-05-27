@@ -6,7 +6,8 @@
 import React, { useState, useRef } from 'react';
 import { 
   Building2, Users, Sliders, ChevronRight, ChevronDown, CheckSquare, Plus, Edit2, Trash2, 
-  RotateCcw, Download, FileSpreadsheet, Cloud, Save, CheckCircle, AlertTriangle, Play, RefreshCw 
+  RotateCcw, Download, FileSpreadsheet, Cloud, Save, CheckCircle, AlertTriangle, Play, RefreshCw,
+  Share2, Copy
 } from 'lucide-react';
 import { Unit, User, CloudflareConfig } from '../types';
 
@@ -921,11 +922,40 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                 )}
               </div>
 
+              {cloudflareConfig.enabled && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 text-left mt-4 animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="text-emerald-800 font-bold text-xs flex items-center gap-1.5 font-sans">
+                      <Share2 className="w-4 h-4 text-emerald-600" />
+                      LIÊN KẾT TỰ ĐỘNG CẤU HÌNH CHO GIAO DỊCH VIÊN KHÁC (BẮT BUỘC ĐỂ ĐỒNG BỘ ĐỒNG NGHIỆP)
+                    </div>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed font-sans">
+                      Hãy sao chép liên kết đặc biệt này gửi cho các thành viên trong tổ/đội. Khi họ mở liên kết này trên máy tính khác, trình duyệt của họ sẽ <strong>tự động liên kết mượt mà với cơ sở dữ liệu Cloudflare D1 + tủ lưu trữ R2 toàn hệ thống</strong> và tải toàn bộ tài khoản vừa tạo về máy để đăng nhập tức thì!
+                    </p>
+                    <div className="bg-white border border-emerald-200 p-2.5 rounded-lg select-all font-mono text-[9px] break-all text-emerald-800 select-all max-h-16 overflow-y-auto w-full">
+                      {`${window.location.origin}${window.location.pathname}?workerUrl=${encodeURIComponent(cloudflareConfig.workerUrl)}&apiSecret=${encodeURIComponent(cloudflareConfig.apiSecret)}`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}${window.location.pathname}?workerUrl=${encodeURIComponent(cloudflareConfig.workerUrl)}&apiSecret=${encodeURIComponent(cloudflareConfig.apiSecret)}`;
+                      navigator.clipboard.writeText(url);
+                      alert('🔑 Đã copy đường dẫn tự động liên kết thành công! Hãy gửi mã này cho Giao dịch viên của bạn để họ mở lên.');
+                    }}
+                    className="shrink-0 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 justify-center w-full md:w-auto"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy Link Auto-Setup
+                  </button>
+                </div>
+              )}
+
               {cloudflareConfig.enabled && onSyncLocalToCloud && (
                 <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 text-left mt-4 animate-in fade-in slide-in-from-top-3 duration-200">
                   <div className="space-y-1">
                     <div className="text-indigo-800 font-bold text-xs flex items-center gap-1.5 font-sans">
-                      <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin-slow" style={{ animationDuration: '6s' }} />
+                      <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin-slow" />
                       CÔNG CỤ ĐỒNG BỘ HÓA DỮ LIỆU CỤC BỘ (LOCAL TO CLOUD MIGRATIVE SYNC)
                     </div>
                     <p className="text-[11px] text-indigo-600/90 leading-relaxed font-sans">
