@@ -378,6 +378,47 @@ API_SECRET = "Mật_Khẩu_Tự_Chọn_Bảo_Mật_Cao_Cho_Hệ_Thống"`;
 
       {/* SQL Setup Block */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-xs text-amber-800 leading-relaxed font-sans">
+          <div className="flex items-center gap-2 font-bold text-amber-900 mb-1">
+            <span>⚠ LƯU Ý QUAN TRỌNG VỀ ĐỒNG BỘ MẬT KHẨU (PASSWORD)</span>
+          </div>
+          <p>
+            Nếu bạn đã tạo cơ sở dữ liệu D1 từ các phiên bản hướng dẫn trước đó, bảng <code className="bg-amber-100 font-mono px-1 py-0.5 rounded text-amber-950">users</code> của bạn có thể <strong>thiếu cột password</strong>. 
+            Điều này làm cho quá trình đồng bộ tài khoản từ các giao diện/trình duyệt khác bị lỗi và giao dịch viên mới thêm <strong>không thể đăng nhập được ở thiết bị khác</strong>.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button
+              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT 'Vnpt@2026';", 'alter_sql')}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
+            >
+              <Copy className="w-3 h-3" />
+              {copiedId === 'alter_sql' ? 'Đã copy câu lệnh nâng cấp!' : 'Copy lệnh SQL nâng cấp (Giữ lại User cũ)'}
+            </button>
+            <button
+              onClick={() => copyToClipboard(`DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  fullName TEXT NOT NULL,
+  role TEXT NOT NULL,
+  unitId TEXT NOT NULL,
+  isFirstLogin INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
+);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin');
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026');`, 'recreate_sql')}
+              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
+            >
+              <Copy className="w-3 h-3" />
+              {copiedId === 'recreate_sql' ? 'Đã copy câu lệnh tạo lại!' : 'Copy lệnh SQL Cài đặt lại từ đầu'}
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10px] text-amber-700">
+            * Sau khi bổ sung cột <code className="font-mono">password</code> trên Cloudflare D1 Console, bạn chỉ cần bấm nút <strong>"Đồng bộ Offline → Cloud"</strong> trong Bảng quản trị để đẩy toàn bộ dữ liệu người dùng và mật khẩu hiện tại từ máy của bạn lên Cloud trực tuyến.
+          </p>
+        </div>
+
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-400"></span>
