@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, Search, BarChart3, Cloud, LogOut, Key, CheckCircle, 
-  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw 
+  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save 
 } from 'lucide-react';
 
 import { Unit, User, SubscriberRecord, CloudflareConfig } from './types';
@@ -28,8 +28,8 @@ const initialUnits: Unit[] = [
 ];
 
 const initialUsers: User[] = [
-  { id: 'admin', username: 'admin', fullName: 'Quản trị viên VNPT', role: 'Admin', unitId: 'UN_ROOT', isFirstLogin: false, status: 'active' },
-  { id: 'tuanha', username: 'tuanha', fullName: 'Trần Tuấn Anh', role: 'User', unitId: 'UN_BC', isFirstLogin: true, status: 'active' },
+  { id: 'admin', username: 'admin', fullName: 'Quản trị viên VNPT', role: 'Admin', unitId: 'UN_ROOT', isFirstLogin: false, status: 'active', password: 'admin' },
+  { id: 'tuanha', username: 'tuanha', fullName: 'Trần Tuấn Anh', role: 'User', unitId: 'UN_BC', isFirstLogin: true, status: 'active', password: 'Vnpt@2026' },
 ];
 
 const initialSubscribers: SubscriberRecord[] = [
@@ -103,6 +103,14 @@ export default function App() {
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
+  
+  // User profile password change states for self-service
+  const [isSelfPasswordModalOpen, setIsSelfPasswordModalOpen] = useState(false);
+  const [selfCurrentPassword, setSelfCurrentPassword] = useState('');
+  const [selfNewPassword, setSelfNewPassword] = useState('');
+  const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
+  const [selfPasswordError, setSelfPasswordError] = useState('');
+  const [selfPasswordSuccess, setSelfPasswordSuccess] = useState(false);
   const [passwordChangeRequiredUser, setPasswordChangeRequiredUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -133,6 +141,39 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('vnpt_cloudflare', JSON.stringify(cloudflareConfig));
   }, [cloudflareConfig]);
+
+  // Load system-wide configurations from full-stack Node server on startup
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      try {
+        const res = await fetch('/api/system-config');
+        if (res.ok) {
+          const sysConfig = await res.json();
+          if (sysConfig && sysConfig.workerUrl) {
+            setCloudflareConfig(sysConfig);
+          }
+        }
+      } catch (err) {
+        console.warn('Lỗi load system config từ server VPS:', err);
+      }
+    };
+    loadSystemConfig();
+  }, []);
+
+  const handleConfigChange = async (newConfig: CloudflareConfig) => {
+    setCloudflareConfig(newConfig);
+    try {
+      await fetch('/api/system-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newConfig),
+      });
+    } catch (err) {
+      console.error('Không thể lưu cấu hình Cloudflare lên server VPS:', err);
+    }
+  };
 
   // Sync session
   useEffect(() => {
@@ -226,20 +267,17 @@ export default function App() {
       return;
     }
 
-    // Default password test logic
-    if (passwordInput === 'Vnpt@2026') {
-      if (matchedUser.isFirstLogin) {
-        // Triggers immediate step to change password
-        setPasswordChangeRequiredUser(matchedUser);
-        return;
-      }
-    } else {
-      // In professional mock system, accept "Vnpt@2026" or any set password for simple testing,
-      // but otherwise allow passwords matching username for comfort!
-      if (passwordInput !== 'admin' && passwordInput !== matchedUser.username) {
-        setLoginError('Mật khẩu nhập vào không chính xác.');
-        return;
-      }
+    const correctPassword = matchedUser.password || (matchedUser.username === 'admin' ? 'admin' : 'Vnpt@2026');
+
+    // First login check with the default correct password
+    if (matchedUser.isFirstLogin && passwordInput === correctPassword) {
+      setPasswordChangeRequiredUser(matchedUser);
+      return;
+    }
+
+    if (passwordInput !== correctPassword) {
+      setLoginError('Mật khẩu nhập vào không chính xác.');
+      return;
     }
 
     // Login approval
@@ -269,7 +307,7 @@ export default function App() {
 
     // Update user profile password index
     const updatedUsers = users.map((u) =>
-      u.id === passwordChangeRequiredUser?.id ? { ...u, isFirstLogin: false } : u
+      u.id === passwordChangeRequiredUser?.id ? { ...u, isFirstLogin: false, password: newPassword } : u
     );
 
     setUsers(updatedUsers);
@@ -289,7 +327,7 @@ export default function App() {
           },
           body: JSON.stringify({
             action: 'update',
-            user: { ...passwordChangeRequiredUser, isFirstLogin: false }
+            user: { ...passwordChangeRequiredUser, isFirstLogin: false, password: newPassword }
           })
         }).catch(err => console.error('Lỗi sync user on password change:', err));
       } catch (e) {
@@ -297,7 +335,7 @@ export default function App() {
       }
     }
 
-    setCurrentUser({ ...passwordChangeRequiredUser!, isFirstLogin: false });
+    setCurrentUser({ ...passwordChangeRequiredUser!, isFirstLogin: false, password: newPassword });
     
     // Clear out
     setPasswordChangeRequiredUser(null);
@@ -308,9 +346,182 @@ export default function App() {
     alert('Mật khẩu mới đã được cập nhật thành công! Trọng lực của tài khoản đã được kích hoạt.');
   };
 
+  const handleSelfPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSelfPasswordError('');
+    setSelfPasswordSuccess(false);
+
+    if (!selfCurrentPassword) {
+      setSelfPasswordError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
+
+    const currentCorrectPass = currentUser?.password || (currentUser?.username === 'admin' ? 'admin' : 'Vnpt@2026');
+    if (selfCurrentPassword !== currentCorrectPass) {
+      setSelfPasswordError('Mật khẩu hiện tại chưa chính xác.');
+      return;
+    }
+
+    if (selfNewPassword.length < 6) {
+      setSelfPasswordError('Mật khẩu mới phải bao gồm ít nhất 6 ký tự.');
+      return;
+    }
+
+    if (selfNewPassword === 'Vnpt@2026') {
+      setSelfPasswordError('Mật khẩu mới không được trùng mật khẩu mặc định.');
+      return;
+    }
+
+    if (selfNewPassword !== selfConfirmPassword) {
+      setSelfPasswordError('Mật khẩu mới xác nhận chưa khớp.');
+      return;
+    }
+
+    // Update in users array
+    const updatedUser = { ...currentUser!, password: selfNewPassword };
+    const updatedUsers = users.map((u) => u.id === currentUser?.id ? updatedUser : u);
+    setUsers(updatedUsers);
+    setCurrentUser(updatedUser);
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      try {
+        let cleanUrl = cloudflareConfig.workerUrl.trim();
+        if (cleanUrl.endsWith('/')) {
+          cleanUrl = cleanUrl.slice(0, -1);
+        }
+        await fetch(`${cleanUrl}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': cloudflareConfig.apiSecret,
+          },
+          body: JSON.stringify({
+            action: 'update',
+            user: updatedUser
+          })
+        });
+      } catch (err) {
+        console.error('Lỗi sync user password to cloud:', err);
+      }
+    }
+
+    setSelfPasswordSuccess(true);
+    setSelfCurrentPassword('');
+    setSelfNewPassword('');
+    setSelfConfirmPassword('');
+    setTimeout(() => {
+      setIsSelfPasswordModalOpen(false);
+      setSelfPasswordSuccess(false);
+    }, 1500);
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
     setCurrentTab('stats');
+  };
+
+  const handleSyncLocalToCloud = async () => {
+    if (!cloudflareConfig.enabled || !cloudflareConfig.workerUrl) {
+      alert('Chưa kích hoạt hoặc cấu hình Cloudflare. Vui lòng bật Cơ chế Trực tuyến trước!');
+      return;
+    }
+
+    if (!confirm('Hành động này sẽ tải toàn bộ danh mục Đơn vị, Tài khoản nhân sự và hồ sơ Thuê bao hiện tại của Trình duyệt này lên Cloudflare và đồng bộ hóa. Bạn có chắc chắn muốn tiến hành?')) {
+      return;
+    }
+
+    try {
+      let cleanUrl = cloudflareConfig.workerUrl.trim();
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+
+      // 1. Sync units
+      let syncUnitsSuccessCount = 0;
+      for (const unit of units) {
+        try {
+          const res = await fetch(`${cleanUrl}/api/units`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-secret': cloudflareConfig.apiSecret,
+            },
+            body: JSON.stringify({
+              action: 'create',
+              unit: unit
+            })
+          });
+          if (res.ok) {
+            syncUnitsSuccessCount++;
+          }
+        } catch (unitErr) {
+          console.error(`Lỗi sync đơn vị ${unit.name}:`, unitErr);
+        }
+      }
+
+      // 2. Sync users
+      let syncUsersSuccessCount = 0;
+      for (const u of users) {
+        try {
+          const res = await fetch(`${cleanUrl}/api/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-secret': cloudflareConfig.apiSecret,
+            },
+            body: JSON.stringify({
+              action: 'create',
+              user: u
+            })
+          });
+          if (res.ok) {
+            syncUsersSuccessCount++;
+          }
+        } catch (userErr) {
+          console.error(`Lỗi sync tài khoản ${u.username}:`, userErr);
+        }
+      }
+
+      // 3. Sync subscribers
+      let syncSubsSuccessCount = 0;
+      for (const sub of subscribers) {
+        try {
+          const res = await fetch(`${cleanUrl}/api/subscribers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-secret': cloudflareConfig.apiSecret,
+            },
+            body: JSON.stringify({
+              id: sub.id,
+              phoneNumber: sub.phoneNumber,
+              fullName: sub.fullName,
+              idNumber: sub.idNumber,
+              createdAt: sub.createdAt,
+              createdBy: sub.createdBy,
+              creatorName: sub.creatorName,
+              unitId: sub.unitId,
+              unitName: sub.unitName,
+              imageBase64: sub.imageUrl, // Send existing Base64 or URL
+            })
+          });
+          if (res.ok) {
+            syncSubsSuccessCount++;
+          }
+        } catch (subErr) {
+          console.error(`Lỗi sync thuê bao ${sub.phoneNumber}:`, subErr);
+        }
+      }
+
+      alert(`ĐỒNG BỘ DỮ LIỆU THÀNH CÔNG!
+- Đồng bộ đơn vị: ${syncUnitsSuccessCount}/${units.length} phòng ban.
+- Đồng bộ tài khoản: ${syncUsersSuccessCount}/${users.length} tài khoản giao dịch viên.
+- Đồng bộ thuê bao: ${syncSubsSuccessCount}/${subscribers.length} hồ sơ gốc (ảnh tự động nạp vào R2 Storage).`);
+
+    } catch (err: any) {
+      alert('Có lỗi xảy ra trong quá trình đồng bộ: ' + (err.message || err));
+    }
   };
 
   // Translate unit database structure to simple objects map
@@ -527,6 +738,15 @@ export default function App() {
           </div>
 
           <button
+            onClick={() => setIsSelfPasswordModalOpen(true)}
+            className="px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-all cursor-pointer border border-indigo-100 active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+            title="Đổi mật khẩu tài khoản"
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Đổi mật khẩu</span>
+          </button>
+
+          <button
             onClick={handleLogout}
             className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100/80 transition-all cursor-pointer border border-red-100 active:scale-95"
             title="Đăng xuất khỏi hệ thống"
@@ -692,10 +912,12 @@ export default function App() {
               <AdminModule
                 units={units}
                 users={users}
+                currentUser={currentUser}
                 cloudflareConfig={cloudflareConfig}
                 onUnitsChange={setUnits}
                 onUsersChange={setUsers}
-                onConfigChange={setCloudflareConfig}
+                onConfigChange={handleConfigChange}
+                onSyncLocalToCloud={handleSyncLocalToCloud}
               />
             )}
           </div>
@@ -712,6 +934,110 @@ export default function App() {
           <span>Phiên bản: 1.0.8 Cloudflare-Integrated</span>
         </div>
       </footer>
+
+      {/* Self Password Change Modal */}
+      {isSelfPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs font-sans px-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xl w-full max-w-md animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-[#005BAA]" />
+                <h3 className="font-bold text-slate-800 text-sm">Đổi Mật Khẩu Cá Nhân</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsSelfPasswordModalOpen(false);
+                  setSelfPasswordError('');
+                  setSelfPasswordSuccess(false);
+                }}
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {selfPasswordSuccess ? (
+              <div className="text-center py-6 space-y-2">
+                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto animate-bounce" />
+                <p className="text-xs font-bold text-emerald-600">Đổi mật khẩu thành công!</p>
+                <p className="text-[11px] text-slate-400">Đang đồng bộ hóa lên hệ thống dữ liệu...</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSelfPasswordChange} className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Tài khoản</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={currentUser?.username}
+                    className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-205 rounded-lg font-bold text-slate-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Mật khẩu hiện tại</label>
+                  <input
+                    type="password"
+                    placeholder="Nhập mật khẩu hiện tại"
+                    value={selfCurrentPassword}
+                    onChange={(e) => setSelfCurrentPassword(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-350 rounded-lg outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA]"
+                  />
+                </div>
+
+                <div className="space-y-1 border-t pt-3 border-slate-100">
+                  <label className="text-[11px] font-bold text-slate-600">Mật khẩu mới</label>
+                  <input
+                    type="password"
+                    placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
+                    value={selfNewPassword}
+                    onChange={(e) => setSelfNewPassword(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-350 rounded-lg outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Xác nhận mật khẩu mới</label>
+                  <input
+                    type="password"
+                    placeholder="Xác nhận mật khẩu mới"
+                    value={selfConfirmPassword}
+                    onChange={(e) => setSelfConfirmPassword(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-350 rounded-lg outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA]"
+                  />
+                </div>
+
+                {selfPasswordError && (
+                  <p className="text-[11px] text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 leading-relaxed">
+                    ⚠️ {selfPasswordError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t pt-3 border-slate-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSelfPasswordModalOpen(false);
+                      setSelfPasswordError('');
+                      setSelfPasswordSuccess(false);
+                    }}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold cursor-pointer transition"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#005BAA] hover:bg-[#004B8C] text-white rounded-lg font-bold cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

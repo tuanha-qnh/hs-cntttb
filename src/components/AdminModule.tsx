@@ -13,19 +13,23 @@ import { Unit, User, CloudflareConfig } from '../types';
 interface Props {
   units: Unit[];
   users: User[];
+  currentUser: User;
   cloudflareConfig: CloudflareConfig;
   onUnitsChange: (newUnits: Unit[]) => void;
   onUsersChange: (newUsers: User[]) => void;
   onConfigChange: (newConfig: CloudflareConfig) => void;
+  onSyncLocalToCloud?: () => Promise<void> | void;
 }
 
 export default function AdminModule({ 
   units, 
   users, 
+  currentUser,
   cloudflareConfig, 
   onUnitsChange, 
   onUsersChange, 
-  onConfigChange 
+  onConfigChange,
+  onSyncLocalToCloud
 }: Props) {
   const [activeTab, setActiveTab] = useState<'units' | 'users' | 'import' | 'cloudflare'>('units');
 
@@ -247,7 +251,8 @@ export default function AdminModule({
       role,
       unitId,
       isFirstLogin: true, // Requires password change
-      status: 'active'
+      status: 'active',
+      password: 'Vnpt@2026'
     };
 
     onUsersChange([...users, newUser]);
@@ -272,7 +277,7 @@ export default function AdminModule({
     if (confirm('Bạn có chắc muốn đặt lại mật khẩu cho thành viên này về lại giá trị mặc định "Vnpt@2026" ?')) {
       const matchedUser = users.find(u => u.id === userId);
       if (matchedUser) {
-        const updatedUser = { ...matchedUser, isFirstLogin: true };
+        const updatedUser = { ...matchedUser, isFirstLogin: true, password: 'Vnpt@2026' };
         onUsersChange(users.map(u => u.id === userId ? updatedUser : u));
 
         // Sync to Cloudflare D1
@@ -287,6 +292,10 @@ export default function AdminModule({
   const handleDeleteUser = (userId: string) => {
     if (userId === 'admin') {
       alert('Tài khoản SuperAdmin gốc không được phép xóa.');
+      return;
+    }
+    if (userId === currentUser.id) {
+      alert('Bạn không thể tự xóa tài khoản của chính mình.');
       return;
     }
     if (confirm('Bạn có chắc muốn xóa thành viên này ra khỏi danh sách?')) {
@@ -911,6 +920,28 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                   </div>
                 )}
               </div>
+
+              {cloudflareConfig.enabled && onSyncLocalToCloud && (
+                <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 text-left mt-4 animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div className="space-y-1">
+                    <div className="text-indigo-800 font-bold text-xs flex items-center gap-1.5 font-sans">
+                      <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin-slow" style={{ animationDuration: '6s' }} />
+                      CÔNG CỤ ĐỒNG BỘ HÓA DỮ LIỆU CỤC BỘ (LOCAL TO CLOUD MIGRATIVE SYNC)
+                    </div>
+                    <p className="text-[11px] text-indigo-600/90 leading-relaxed font-sans">
+                      Nếu trước đó bạn đã tạo các Đơn vị, Tài khoản nhân sự (bao gồm cả Mật khẩu đã đổi) hoặc lưu các Thuê bao và hình ảnh cục bộ (Local Storage), hãy bấm nút đồng bộ này để đẩy toàn bộ lên cơ sở dữ liệu D1 & tủ chứa R2 đám mây ngay lập tức.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onSyncLocalToCloud}
+                    className="shrink-0 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Đồng bộ Offline → Cloud
+                  </button>
+                </div>
+              )}
 
               <div className="flex justify-end pt-2 border-t mt-4">
                 <button

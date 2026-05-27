@@ -17,6 +17,7 @@ export interface User {
   unitId: string;
   isFirstLogin: boolean;
   status: 'active' | 'inactive';
+  password?: string;
 }
 
 export interface SubscriberRecord {

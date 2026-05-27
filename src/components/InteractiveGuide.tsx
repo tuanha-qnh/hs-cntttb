@@ -36,12 +36,13 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL,
   unitId TEXT NOT NULL,
   isFirstLogin INTEGER NOT NULL,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
 );
 
 -- Chèn dữ liệu tài khoản quản trị và giao dịch viên mẫu
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active');
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active');
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin');
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026');
 
 -- 3. TẠO BẢNG HỒ SƠ THUÊ BAO
 CREATE TABLE IF NOT EXISTS subscribers (
@@ -254,9 +255,10 @@ export default {
         } else {
           // "create" hoặc "update"
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
+          const userPassword = user.password || "Vnpt@2026";
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
