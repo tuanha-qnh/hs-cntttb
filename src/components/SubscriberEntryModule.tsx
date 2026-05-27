@@ -48,17 +48,73 @@ export default function SubscriberEntryModule({ cloudflareConfig, onRecordCreate
     }
   };
 
-  const handleFile = (file: File) => {
+  const compressAndResizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const max_size = 1200; // kích thước rộng/cao tối đa thích hợp cho hồ sơ thanh toán / scan phiếu
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > max_size) {
+              height *= max_size / width;
+              width = max_size;
+            }
+          } else {
+            if (height > max_size) {
+              width *= max_size / height;
+              height = max_size;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Nén sang định dạng JPEG với chất lượng 0.75 để giảm dung lượng ảnh xuống còn ~100-200 KB siêu nhanh
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            resolve(dataUrl);
+          } else {
+            resolve(event.target?.result as string); // Fallback nếu trình duyệt không hỗ trợ Canvas 2D
+          }
+        };
+        img.onerror = (err) => {
+          reject(err);
+        };
+      };
+      reader.onerror = (err) => {
+        reject(err);
+      };
+    });
+  };
+
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Vui lòng tải lên tệp định dạng hình ảnh (PNG, JPG, JPEG).');
       return;
     }
     setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    
+    try {
+      // Tiến hành nén ảnh trước khi đặt preview base64 gửi lên Worker
+      const compressedDataUrl = await compressAndResizeImage(file);
+      setImagePreview(compressedDataUrl);
+    } catch (err) {
+      console.error('Lỗi nén ảnh:', err);
+      // Fallback nếu việc nén gặp lỗi ngoài dự kiến
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -185,7 +241,23 @@ export default function SubscriberEntryModule({ cloudflareConfig, onRecordCreate
     } catch (err: any) {
       console.error(err);
       setStatus('error');
-      setErrorMessage(err.message || 'Lỗi hệ thống không thể tải hồ sơ lên. Vui lòng kiểm tra lại kết cấu API mạng.');
+      
+      const isFetchError = err.message && (
+        err.message.toLowerCase().includes('fetch') || 
+        err.message.toLowerCase().includes('network') ||
+        err.message.toLowerCase().includes('failed')
+      );
+      
+      if (isFetchError) {
+        setErrorMessage(
+          'Không thể kết nối đến Cloudflare Worker (Lỗi Fetch/CORS). Vui lòng: ' +
+          '1) Truy cập mục "Đồng bộ đám mây" tại màn hình đăng nhập để kiểm tra xem bạn đã copy & nạp đè phiên bản mã nguồn mới nhất cho Cloudflare Worker chưa (mã mới đã giải quyết 100% CORS). ' +
+          '2) Kiểm tra xem bạn đã liên kết đúng cơ sở dữ liệu DB (D1) và R2_BUCKET trong Cloudflare Dashboard chưa. ' +
+          '3) Đảm bảo Worker của bạn đã được triển khai thành công lên môi trường Cloudflare.'
+        );
+      } else {
+        setErrorMessage(err.message || 'Lỗi hệ thống không thể tải hồ sơ lên. Vui lòng kiểm tra lại kết cấu API mạng.');
+      }
     }
   };
 

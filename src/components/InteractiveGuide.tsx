@@ -99,8 +99,8 @@ export default {
     // Xử lý CORS kích hoạt cho phép Frontend upload từ mọi nguồn (bao gồm Github Pages, Vercel)
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-secret",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
       "Access-Control-Max-Age": "86400",
     };
 
