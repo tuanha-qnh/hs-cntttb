@@ -145,6 +145,18 @@ export default function App() {
   // Load system-wide configurations from full-stack Node server on startup
   useEffect(() => {
     const loadSystemConfig = async () => {
+      const hostname = window.location.hostname;
+      const hasLocalBackend = 
+        hostname === 'localhost' || 
+        hostname === '127.0.0.1' || 
+        hostname === '0.0.0.0' || 
+        hostname.endsWith('.run.app');
+
+      if (!hasLocalBackend) {
+        // Pure static client environment (Vercel, GitHub Pages) - skip VPS backend routing
+        return;
+      }
+
       try {
         const res = await fetch('/api/system-config');
         if (res.ok) {
@@ -162,6 +174,19 @@ export default function App() {
 
   const handleConfigChange = async (newConfig: CloudflareConfig) => {
     setCloudflareConfig(newConfig);
+
+    const hostname = window.location.hostname;
+    const hasLocalBackend = 
+      hostname === 'localhost' || 
+      hostname === '127.0.0.1' || 
+      hostname === '0.0.0.0' || 
+      hostname.endsWith('.run.app');
+
+    if (!hasLocalBackend) {
+      // Avoid making API calls to dynamic ports in pure static environments like Vercel
+      return;
+    }
+
     try {
       await fetch('/api/system-config', {
         method: 'POST',
