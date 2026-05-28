@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS users (
   unitId TEXT NOT NULL,
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
-  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026',
+  canImportData INTEGER DEFAULT 0
 );
 
 -- Chèn dữ liệu tài khoản quản trị và giao dịch viên mẫu
@@ -129,6 +130,8 @@ export default {
     const isUsersPath = path === "/api/users" || path === "/users";
     const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
     const isTestPath = path === "/api/test" || path === "/test";
+    const isTargetSubsPath = path === "/api/target-subscribers" || path === "/target-subscribers";
+    const isNormalizedSubsPath = path === "/api/normalized-subscribers" || path === "/normalized-subscribers";
 
     // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
     try {
@@ -302,9 +305,68 @@ export default {
           // "create" hoặc "update"
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
+          const canImport = user.canImportData ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, canImport).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Lấy danh sách Khách hàng Mục tiêu (GET target-subscribers)
+      if (isTargetSubsPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Đồng bộ Khách hàng Mục tiêu (POST target-subscribers)
+      if (isTargetSubsPath && request.method === "POST") {
+        const { action, items = [] } = await request.json();
+        
+        if (action === "clear") {
+          await env.DB.prepare("DELETE FROM DS_TB_MUCTIEU").run();
+        } else if (action === "create_bulk" && Array.isArray(items)) {
+          const statements = items.map(item => {
+            return env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)")
+              .bind(item.So_thue_bao, item.Tap_thue_bao);
+          });
+          if (statements.length > 0) {
+            await env.DB.batch(statements);
+          }
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Lấy danh sách Thuê bao Chuẩn hóa (GET normalized-subscribers)
+      if (isNormalizedSubsPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM KQ_CNTTTB").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Đồng bộ Thuê bao Chuẩn hóa (POST normalized-subscribers)
+      if (isNormalizedSubsPath && request.method === "POST") {
+        const { action, items = [] } = await request.json();
+
+        if (action === "clear") {
+          await env.DB.prepare("DELETE FROM KQ_CNTTTB").run();
+        } else if (action === "create_bulk" && Array.isArray(items)) {
+          const statements = items.map(item => {
+            return env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (So_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)")
+              .bind(item.So_thue_bao, item.User_capnhat, item.Ma_hrm_CN, item.Kenh_CN, item.Ngay_CN);
+          });
+          if (statements.length > 0) {
+            await env.DB.batch(statements);
+          }
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -374,6 +436,8 @@ export default {
     const isUsersPath = path === "/api/users" || path === "/users";
     const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
     const isTestPath = path === "/api/test" || path === "/test";
+    const isTargetSubsPath = path === "/api/target-subscribers" || path === "/target-subscribers";
+    const isNormalizedSubsPath = path === "/api/normalized-subscribers" || path === "/normalized-subscribers";
 
     // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
     try {
@@ -547,9 +611,68 @@ export default {
           // "create" hoặc "update"
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
+          const canImport = user.canImportData ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, canImport).run();
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Lấy danh sách Khách hàng Mục tiêu (GET target-subscribers)
+      if (isTargetSubsPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Đồng bộ Khách hàng Mục tiêu (POST target-subscribers)
+      if (isTargetSubsPath && request.method === "POST") {
+        const { action, items = [] } = await request.json() as any;
+        
+        if (action === "clear") {
+          await env.DB.prepare("DELETE FROM DS_TB_MUCTIEU").run();
+        } else if (action === "create_bulk" && Array.isArray(items)) {
+          const statements = items.map(item => {
+            return env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)")
+              .bind(item.So_thue_bao, item.Tap_thue_bao);
+          });
+          if (statements.length > 0) {
+            await env.DB.batch(statements);
+          }
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Lấy danh sách Thuê bao Chuẩn hóa (GET normalized-subscribers)
+      if (isNormalizedSubsPath && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT * FROM KQ_CNTTTB").all();
+        return new Response(JSON.stringify(result.results), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Endpoint: Đồng bộ Thuê bao Chuẩn hóa (POST normalized-subscribers)
+      if (isNormalizedSubsPath && request.method === "POST") {
+        const { action, items = [] } = await request.json() as any;
+
+        if (action === "clear") {
+          await env.DB.prepare("DELETE FROM KQ_CNTTTB").run();
+        } else if (action === "create_bulk" && Array.isArray(items)) {
+          const statements = items.map(item => {
+            return env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (So_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)")
+              .bind(item.So_thue_bao, item.User_capnhat, item.Ma_hrm_CN, item.Kenh_CN, item.Ngay_CN);
+          });
+          if (statements.length > 0) {
+            await env.DB.batch(statements);
+          }
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -679,7 +802,7 @@ API_SECRET = "Mật_Khẩu_Tự_Chọn_Bảo_Mật_Cao_Cho_Hệ_Thống"`;
           </p>
           <div className="mt-2.5 flex flex-wrap gap-2">
             <button
-              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT 'Vnpt@2026';", 'alter_sql')}
+              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT 'Vnpt@2026'; ALTER TABLE users ADD COLUMN canImportData INTEGER DEFAULT 0;", 'alter_sql')}
               className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />
@@ -695,10 +818,11 @@ CREATE TABLE users (
   unitId TEXT NOT NULL,
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
-  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026',
+  canImportData INTEGER DEFAULT 0
 );
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin');
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026');`, 'recreate_sql')}
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0);`, 'recreate_sql')}
               className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />

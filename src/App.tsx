@@ -310,14 +310,60 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+                canImportData: u.canImportData === 1 || u.canImportData === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
             }
           }
 
-          alert('🔥 ĐỒNG BỘ TRỰC TUYẾN THÀNH CÔNG!\nTrình duyệt đã nạp cấu hình tự động Cloudflare D1 + R2.\nDữ liệu tài khoản giao dịch viên đã đồng bộ về máy. Bạn có thể đăng nhập ngay lập tức!');
+          // 4. Sync targets (danh sách thuê bao mục tiêu)
+          try {
+            const targetsRes = await fetch(`${cleanUrl}/api/target-subscribers`, {
+              headers: { 'x-api-secret': decodedApiSecret }
+            });
+            if (targetsRes.ok) {
+              const externalTargets = await targetsRes.json();
+              if (Array.isArray(externalTargets)) {
+                const mapped = externalTargets.map((item: any) => ({
+                  phoneNumber: item.So_thue_bao,
+                  segment: item.Tap_thue_bao,
+                  importedAt: new Date().toISOString()
+                }));
+                setTargetSubscribers(mapped);
+                localStorage.setItem('vnpt_target_subscribers', JSON.stringify(mapped));
+              }
+            }
+          } catch (err) {
+            console.error('Lỗi sync targets đợt 1:', err);
+          }
+
+          // 5. Sync normalized (danh sách thuê bao chuẩn hóa)
+          try {
+            const normalizedRes = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
+              headers: { 'x-api-secret': decodedApiSecret }
+            });
+            if (normalizedRes.ok) {
+              const externalNormalized = await normalizedRes.json();
+              if (Array.isArray(externalNormalized)) {
+                const mapped = externalNormalized.map((item: any) => ({
+                  phoneNumber: item.So_thue_bao,
+                  updatedByUser: item.User_capnhat,
+                  hrmCode: item.Ma_hrm_CN,
+                  channel: item.Kenh_CN,
+                  updatedAt: item.Ngay_CN,
+                  importedAt: new Date().toISOString()
+                }));
+                setNormalizedSubscribers(mapped);
+                localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(mapped));
+              }
+            }
+          } catch (err) {
+            console.error('Lỗi sync normalized đợt 1:', err);
+          }
+
+          alert('🔥 ĐỒNG BỘ TRỰC TUYẾN THÀNH CÔNG!\nTrình duyệt đã nạp cấu hình tự động Cloudflare D1 + R2.\nDữ liệu tài khoản giao dịch viên cùng dữ liệu chuẩn hóa đã đồng bộ về máy. Bạn có thể đăng nhập ngay lập tức!');
         } catch (err: any) {
           alert('Cấu hình liên kết tự động thành công nhưng lỗi đồng bộ: ' + (err.message || err));
         }
@@ -415,7 +461,8 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+                canImportData: u.canImportData === 1 || u.canImportData === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -455,6 +502,51 @@ export default function App() {
               setSubscribers(externalSubs);
               localStorage.setItem('vnpt_subscribers', JSON.stringify(externalSubs));
             }
+          }
+
+          // Fetch targets (danh sách thuê bao mục tiêu)
+          try {
+            const targetsRes = await fetch(`${cleanUrl}/api/target-subscribers`, {
+              headers: { 'x-api-secret': activeSecret }
+            });
+            if (targetsRes.ok) {
+              const externalTargets = await targetsRes.json();
+              if (Array.isArray(externalTargets)) {
+                const mapped = externalTargets.map((item: any) => ({
+                  phoneNumber: item.So_thue_bao,
+                  segment: item.Tap_thue_bao,
+                  importedAt: new Date().toISOString()
+                }));
+                setTargetSubscribers(mapped);
+                localStorage.setItem('vnpt_target_subscribers', JSON.stringify(mapped));
+              }
+            }
+          } catch (err) {
+            console.warn('Lỗi tải danh sách KH mục tiêu từ cloud:', err);
+          }
+
+          // Fetch normalized (danh sách thuê bao chuẩn hóa)
+          try {
+            const normalizedRes = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
+              headers: { 'x-api-secret': activeSecret }
+            });
+            if (normalizedRes.ok) {
+              const externalNormalized = await normalizedRes.json();
+              if (Array.isArray(externalNormalized)) {
+                const mapped = externalNormalized.map((item: any) => ({
+                  phoneNumber: item.So_thue_bao,
+                  updatedByUser: item.User_capnhat,
+                  hrmCode: item.Ma_hrm_CN,
+                  channel: item.Kenh_CN,
+                  updatedAt: item.Ngay_CN,
+                  importedAt: new Date().toISOString()
+                }));
+                setNormalizedSubscribers(mapped);
+                localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(mapped));
+              }
+            }
+          } catch (err) {
+            console.warn('Lỗi tải danh sách thuê bao chuẩn hóa từ cloud:', err);
           }
 
           console.log('✓ [Auto-Sync] Đồng bộ dữ liệu thành công từ đám mây (Cloudflare D1).');
@@ -954,7 +1046,7 @@ export default function App() {
   if (!currentUser) {
     if (passwordChangeRequiredUser) {
       return (
-        <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 relative">
             {/* Design accents */}
             <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-blue-500 to-transparent"></div>
@@ -1023,7 +1115,7 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden relative">
           {/* Top Blue Accent */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-[#005BAA]"></div>
@@ -1360,7 +1452,12 @@ export default function App() {
                     <Users className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
                     <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Quản trị Hệ thống</span>
                   </button>
+                </div>
+              )}
 
+              {/* Import data module privilege */}
+              {(currentUser.role === 'Admin' || currentUser.canImportData) && (
+                <div className="pt-2">
                   <button
                     onClick={() => setCurrentTab('import-data')}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
@@ -1469,20 +1566,93 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'import-data' && currentUser.role === 'Admin' && (
-              <SubscriberDataImportModule
-                targetSubscribers={targetSubscribers}
-                normalizedSubscribers={normalizedSubscribers}
-                onImportTargets={(newTargets) => {
-                  setTargetSubscribers((prev) => [...prev, ...newTargets]);
-                }}
-                onImportNormalized={(newNormalized) => {
-                  setNormalizedSubscribers((prev) => [...prev, ...newNormalized]);
-                }}
-                onClearTargets={() => setTargetSubscribers([])}
-                onClearNormalized={() => setNormalizedSubscribers([])}
-              />
-            )}
+             {currentTab === 'import-data' && (currentUser.role === 'Admin' || currentUser.canImportData) && (
+               <SubscriberDataImportModule
+                 targetSubscribers={targetSubscribers}
+                 normalizedSubscribers={normalizedSubscribers}
+                 onImportTargets={(newTargets) => {
+                   setTargetSubscribers((prev) => [...prev, ...newTargets]);
+                   // Sync to Cloudflare D1 immediately
+                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+                     const mappedItems = newTargets.map(t => ({
+                       So_thue_bao: t.phoneNumber,
+                       Tap_thue_bao: t.segment
+                     }));
+                     let cleanUrl = cloudflareConfig.workerUrl.trim();
+                     if (cleanUrl.endsWith('/')) {
+                       cleanUrl = cleanUrl.slice(0, -1);
+                     }
+                     fetch(`${cleanUrl}/api/target-subscribers`, {
+                       method: 'POST',
+                       headers: {
+                         'Content-Type': 'application/json',
+                         'x-api-secret': cloudflareConfig.apiSecret
+                       },
+                       body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
+                     }).catch(err => console.error('Lỗi sync targets: ', err));
+                   }
+                 }}
+                 onImportNormalized={(newNormalized) => {
+                   setNormalizedSubscribers((prev) => [...prev, ...newNormalized]);
+                   // Sync to Cloudflare D1 immediately
+                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+                     const mappedItems = newNormalized.map(n => ({
+                       So_thue_bao: n.phoneNumber,
+                       User_capnhat: n.updatedByUser,
+                       Ma_hrm_CN: n.hrmCode,
+                       Kenh_CN: n.channel,
+                       Ngay_CN: n.updatedAt
+                     }));
+                     let cleanUrl = cloudflareConfig.workerUrl.trim();
+                     if (cleanUrl.endsWith('/')) {
+                       cleanUrl = cleanUrl.slice(0, -1);
+                     }
+                     fetch(`${cleanUrl}/api/normalized-subscribers`, {
+                       method: 'POST',
+                       headers: {
+                         'Content-Type': 'application/json',
+                         'x-api-secret': cloudflareConfig.apiSecret
+                       },
+                       body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
+                     }).catch(err => console.error('Lỗi sync normalized: ', err));
+                   }
+                 }}
+                 onClearTargets={() => {
+                   setTargetSubscribers([]);
+                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+                     let cleanUrl = cloudflareConfig.workerUrl.trim();
+                     if (cleanUrl.endsWith('/')) {
+                       cleanUrl = cleanUrl.slice(0, -1);
+                     }
+                     fetch(`${cleanUrl}/api/target-subscribers`, {
+                       method: 'POST',
+                       headers: {
+                         'Content-Type': 'application/json',
+                         'x-api-secret': cloudflareConfig.apiSecret
+                       },
+                       body: JSON.stringify({ action: 'clear' })
+                     }).catch(err => console.error('Lỗi clear targets: ', err));
+                   }
+                 }}
+                 onClearNormalized={() => {
+                   setNormalizedSubscribers([]);
+                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+                     let cleanUrl = cloudflareConfig.workerUrl.trim();
+                     if (cleanUrl.endsWith('/')) {
+                       cleanUrl = cleanUrl.slice(0, -1);
+                     }
+                     fetch(`${cleanUrl}/api/normalized-subscribers`, {
+                       method: 'POST',
+                       headers: {
+                         'Content-Type': 'application/json',
+                         'x-api-secret': cloudflareConfig.apiSecret
+                       },
+                       body: JSON.stringify({ action: 'clear' })
+                     }).catch(err => console.error('Lỗi clear normalized: ', err));
+                   }
+                 }}
+               />
+             )}
           </div>
         </main>
       </div>
