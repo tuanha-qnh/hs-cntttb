@@ -1,11 +1,7 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
-import { Upload, ClipboardList, Database, LayoutGrid, CheckCircle2, AlertCircle, FileSpreadsheet, PlusCircle, Trash2 } from 'lucide-react';
+import { Upload, ClipboardList, Database, LayoutGrid, CheckCircle2, AlertCircle, FileSpreadsheet, PlusCircle, Trash2, Download } from 'lucide-react';
 import { TargetSubscriber, NormalizedSubscriber } from '../types';
+import * as XLSX from 'xlsx';
 
 interface Props {
   targetSubscribers: TargetSubscriber[];
@@ -26,6 +22,10 @@ export default function SubscriberDataImportModule({
 }: Props) {
   const [activeImportType, setActiveImportType] = useState<'target' | 'normalized'>('target');
   
+  // Custom input method tabs
+  const [targetInputMethod, setTargetInputMethod] = useState<'file' | 'paste'>('file');
+  const [normalizedInputMethod, setNormalizedInputMethod] = useState<'file' | 'paste'>('file');
+
   // States for target import
   const [targetPasteArea, setTargetPasteArea] = useState('');
   const [targetSinglePhone, setTargetSinglePhone] = useState('');
@@ -40,6 +40,161 @@ export default function SubscriberDataImportModule({
   const [normSingleChannel, setNormSingleChannel] = useState('');
   const [normSingleDate, setNormSingleDate] = useState('');
   const [normalizedImportStats, setNormalizedImportStats] = useState<{ total: number; added: number; skipped: number } | null>(null);
+
+  // Download Sample Excel Template
+  const handleDownloadTemplate = (type: 'target' | 'normalized') => {
+    try {
+      const wb = XLSX.utils.book_new();
+      let data: any[] = [];
+      let filename = '';
+      
+      if (type === 'target') {
+        data = [
+          ['So_thue_bao', 'Tap_thue_bao'],
+          ['0914111222', 'Chiến dịch Địa bàn Hạ Long QN'],
+          ['0888999888', 'Khách hàng VIP 2026'],
+          ['0915666777', 'Thuê bao rà soát đợt 3']
+        ];
+        filename = 'Mau_DS_TB_MUCTIEU.xlsx';
+      } else {
+        data = [
+          ['So_thue_bao', 'User_capnhat', 'Ma_hrm_CN', 'Kenh_CN', 'Ngay_CN'],
+          ['0914111222', 'Nguyễn Văn A', 'HRM_0123', 'Cửa hàng Hạ Long', '28/05/2026'],
+          ['0888999888', 'Trần Thị B', 'HRM_9988', 'App MyVNPT', '28/05/2026']
+        ];
+        filename = 'Mau_KQ_CNTTTB.xlsx';
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      XLSX.writeFile(wb, filename);
+    } catch (err: any) {
+      alert('Không khởi tạo được file mẫu: ' + err.message);
+    }
+  };
+
+  // Unified File parser logic for excel / csv
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>, type: 'target' | 'normalized') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+        if (rows.length === 0) {
+          alert('File Excel rỗng!');
+          return;
+        }
+
+        // Check if first line resembles header metadata, if yes skip
+        const isHeader = String(rows[0][0] || '').toLowerCase().includes('thue') || 
+                         String(rows[0][0] || '').toLowerCase().includes('so_thue_bao') ||
+                         String(rows[0][0] || '').toLowerCase().includes('sđt') ||
+                         String(rows[0][0] || '').toLowerCase().includes('phone');
+        
+        const startIndex = isHeader ? 1 : 0;
+        let dupCount = 0;
+        let totalLines = 0;
+
+        if (type === 'target') {
+          const parsedTargets: TargetSubscriber[] = [];
+          
+          for (let i = startIndex; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[0]) continue;
+            
+            const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
+            const segmentWord = String(row[1] || 'Excel Import').trim();
+            
+            if (!phoneWord) continue;
+            totalLines++;
+            
+            if (/^\d{9,11}$/.test(phoneWord)) {
+              const isAlreadyExisting = targetSubscribers.some(t => t.phoneNumber === phoneWord) || 
+                                        parsedTargets.some(t => t.phoneNumber === phoneWord);
+              if (isAlreadyExisting) {
+                dupCount++;
+              } else {
+                parsedTargets.push({
+                  phoneNumber: phoneWord,
+                  segment: segmentWord,
+                  importedAt: new Date().toISOString(),
+                });
+              }
+            } else {
+              dupCount++;
+            }
+          }
+          
+          if (parsedTargets.length > 0) {
+            onImportTargets(parsedTargets);
+          }
+          setTargetImportStats({
+            total: totalLines,
+            added: parsedTargets.length,
+            skipped: dupCount
+          });
+          alert(`Đã nạp thành công! Đọc ${totalLines} hàng dòng dán hoặc Excel, thêm mới ${parsedTargets.length} mục tiêu. Bỏ qua trùng lặp: ${dupCount}.`);
+        } else {
+          // Normalized
+          const parsedNormalized: NormalizedSubscriber[] = [];
+          
+          for (let i = startIndex; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[0]) continue;
+            
+            const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
+            const rawUser = String(row[1] || 'Giao dịch viên').trim();
+            const rawHrm = String(row[2] || 'HRM_001').trim();
+            const rawChannel = String(row[3] || 'Quầy giao dịch').trim();
+            const rawDate = String(row[4] || new Date().toLocaleDateString('vi-VN')).trim();
+            
+            if (!phoneWord) continue;
+            totalLines++;
+            
+            if (/^\d{9,11}$/.test(phoneWord)) {
+              const isAlreadyExisting = normalizedSubscribers.some(n => n.phoneNumber === phoneWord) ||
+                                        parsedNormalized.some(n => n.phoneNumber === phoneWord);
+              if (isAlreadyExisting) {
+                dupCount++;
+              } else {
+                parsedNormalized.push({
+                  phoneNumber: phoneWord,
+                  updatedByUser: rawUser,
+                  hrmCode: rawHrm,
+                  channel: rawChannel,
+                  updatedAt: rawDate,
+                  importedAt: new Date().toISOString(),
+                });
+              }
+            } else {
+              dupCount++;
+            }
+          }
+          
+          if (parsedNormalized.length > 0) {
+            onImportNormalized(parsedNormalized);
+          }
+          setNormalizedImportStats({
+            total: totalLines,
+            added: parsedNormalized.length,
+            skipped: dupCount
+          });
+          alert(`Đã nạp thành công! Đọc ${totalLines} hàng dòng dán hoặc Excel, thêm mới ${parsedNormalized.length} thuê bao chuẩn hóa. Bỏ qua trùng lặp: ${dupCount}.`);
+        }
+      } catch (err: any) {
+        alert('Lỗi phân tích file Excel / CSV: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
 
   // Parse Target Subscribers (bulk text paste)
   const handleBulkImportTargets = (e: React.FormEvent) => {
@@ -277,38 +432,106 @@ export default function SubscriberDataImportModule({
           {activeImportType === 'target' ? (
             /* TARGET IMPORT CARD CONTAINER */
             <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs p-6 space-y-4">
-              <div className="flex items-center gap-2.5 text-[#005BAA]">
-                <ClipboardList className="w-5 h-5" />
-                <h3 className="text-sm font-bold uppercase tracking-wide">
-                  Import Khách Hàng Mục Tiêu
-                </h3>
-              </div>
-              <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
-                Chuẩn định dạng: <strong className="font-mono bg-slate-100 text-slate-700 px-1 rounded">Số_thuê_bao,Tập_thuê_bao</strong>. Có thể copy dữ liệu nhiều dòng từ Microsoft Excel dán trực tiếp vào khung dưới đây. Hệ thống tự động lọc trùng!
-              </p>
-
-              <form onSubmit={handleBulkImportTargets} className="space-y-4">
-                <textarea
-                  rows={8}
-                  value={targetPasteArea}
-                  onChange={(e) => setTargetPasteArea(e.target.value)}
-                  placeholder="Ví dụ dán dữ liệu:&#10;0888999888,Tập chuẩn hóa đợt 1&#10;0911222333,Tập Khách hàng VIP Quảng Ninh&#10;0912333444,Quầy Hạ Long bổ sung"
-                  className="w-full p-4 bg-slate-50 border border-slate-205 rounded-xl text-xs font-mono tracking-wider focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA]"
-                />
-
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] text-slate-400 font-sans">
-                    * Định dạng hợp lệ: Số điện thoại từ 9 đến 11 chữ số.
-                  </div>
-                  <button
-                    type="submit"
-                    className="bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs px-6 py-2 rounded-xl transition-all hover:shadow-md cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Bắt đầu Import dữ liệu
-                  </button>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-[#005BAA]">
+                  <ClipboardList className="w-5 h-5" />
+                  <h3 className="text-sm font-bold uppercase tracking-wide">
+                    Import Khách Hàng Mục Tiêu
+                  </h3>
                 </div>
-              </form>
+              </div>
+
+              {/* Selector for Input Method */}
+              <div className="flex border-b border-slate-100 pb-1.5 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setTargetInputMethod('file')}
+                  className={`pb-1 text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer ${
+                    targetInputMethod === 'file'
+                      ? 'text-[#005BAA] border-b-2 border-[#005BAA]'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Nạp từ File Excel (.xlsx, .xls, .csv)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetInputMethod('paste')}
+                  className={`pb-1 text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer ${
+                    targetInputMethod === 'paste'
+                      ? 'text-[#005BAA] border-b-2 border-[#005BAA]'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Sao chép / Dán văn bản thô
+                </button>
+              </div>
+
+              {targetInputMethod === 'file' ? (
+                <div className="space-y-4 pt-1 animate-in fade-in duration-150">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-blue-50/40 p-4 rounded-xl border border-blue-100">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 block">Tải file biểu mẫu chuẩn</span>
+                      <p className="text-[10px] text-slate-500 font-sans">Sử dụng file Excel mẫu để điền danh sách thuê bao nhanh chóng, tránh sai thứ tự cột.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadTemplate('target')}
+                      className="px-3.5 py-1.5 bg-white border border-blue-200 text-[#005BAA] hover:bg-blue-50 hover:text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer font-sans"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Tải file mẫu .xlsx
+                    </button>
+                  </div>
+
+                  <div className="border-2 border-dashed border-slate-200 hover:border-[#005BAA] transition-all p-8 rounded-2xl text-center bg-slate-50/50 hover:bg-blue-50/10 space-y-3 relative group">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={(e) => handleFileImport(e, 'target')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="mx-auto bg-blue-50 text-[#005BAA] group-hover:bg-[#005BAA] group-hover:text-white p-3 rounded-full inline-flex transition-all">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-slate-700 font-sans">Kéo thả file Excel / CSV hoặc nhấp để chọn file</p>
+                      <p className="text-[10px] text-slate-400 font-sans">Chấp nhận định dạng file .xlsx, .xls, .csv. Hệ thống chuẩn hóa tự động lọc trùng!</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-1 animate-in fade-in duration-150 space-y-4">
+                  <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
+                    Chuẩn định dạng: <strong className="font-mono bg-slate-100 text-slate-700 px-1 rounded">Số_thuê_bao,Tập_thuê_bao</strong>. Có thể copy dữ liệu nhiều dòng từ Microsoft Excel dán trực tiếp vào khung dưới đây. Hệ thống tự động lọc trùng!
+                  </p>
+
+                  <form onSubmit={handleBulkImportTargets} className="space-y-4">
+                    <textarea
+                      rows={8}
+                      value={targetPasteArea}
+                      onChange={(e) => setTargetPasteArea(e.target.value)}
+                      placeholder="Ví dụ dán dữ liệu:&#10;0888999888,Tập chuẩn hóa đợt 1&#10;0911222333,Tập Khách hàng VIP Quảng Ninh&#10;0912333444,Quầy Hạ Long bổ sung"
+                      className="w-full p-4 bg-slate-50 border border-slate-205 rounded-xl text-xs font-mono tracking-wider focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA]"
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-slate-400 font-sans">
+                        * Định dạng hợp lệ: Số điện thoại từ 9 đến 11 chữ số.
+                      </div>
+                      <button
+                        type="submit"
+                        className="bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs px-6 py-2 rounded-xl transition-all hover:shadow-md cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Bắt đầu Import dữ liệu
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               {/* Targets Stats notification wrapper */}
               {targetImportStats && (
@@ -331,38 +554,106 @@ export default function SubscriberDataImportModule({
           ) : (
             /* NORMALIZED IMPORT CARD CONTAINER */
             <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs p-6 space-y-4">
-              <div className="flex items-center gap-2.5 text-green-600">
-                <FileSpreadsheet className="w-5 h-5" />
-                <h3 className="text-sm font-bold uppercase tracking-wide">
-                  Import Danh Sách Chuẩn Hóa
-                </h3>
-              </div>
-              <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
-                Độ rộng cột phân cách: <strong className="font-mono bg-slate-100 text-slate-700 px-1 rounded">Số_thuê_bao,User_cập_nhật,Mã_HRM,Kênh_cập_nhật,Ngày_cập_nhật(DD/MM/YYYY)</strong>. Có thể Copy/Paste nguyên bảng từ Excel/Sheets.
-              </p>
-
-              <form onSubmit={handleBulkImportNormalized} className="space-y-4">
-                <textarea
-                  rows={8}
-                  value={normalizedPasteArea}
-                  onChange={(e) => setNormalizedPasteArea(e.target.value)}
-                  placeholder="Ví dụ dán dữ liệu:&#10;0888999888,Nguyễn Văn A,HRM_0123,App MyVNPT,28/05/2026&#10;0911777888,Trần Thị B,HRM_9988,Quầy giao dịch HL,27/05/2026"
-                  className="w-full p-4 bg-slate-50 border border-slate-205 rounded-xl text-xs font-mono tracking-wider focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-green-500"
-                />
-
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] text-slate-400 font-sans">
-                    * Tự động lọc trùng thông minh, giữ lại và cảnh báo để không cho phép nạp đè dữ liệu cũ.
-                  </div>
-                  <button
-                    type="submit"
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2 rounded-xl transition-all hover:shadow-md cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Nạp dữ liệu chuẩn hóa
-                  </button>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-green-600">
+                  <FileSpreadsheet className="w-5 h-5" />
+                  <h3 className="text-sm font-bold uppercase tracking-wide">
+                    Import Danh Sách Chuẩn Hóa
+                  </h3>
                 </div>
-              </form>
+              </div>
+
+              {/* Selector for Input Method */}
+              <div className="flex border-b border-slate-100 pb-1.5 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setNormalizedInputMethod('file')}
+                  className={`pb-1 text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer ${
+                    normalizedInputMethod === 'file'
+                      ? 'text-green-600 border-b-2 border-green-600'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Nạp từ File Excel (.xlsx, .xls, .csv)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNormalizedInputMethod('paste')}
+                  className={`pb-1 text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer ${
+                    normalizedInputMethod === 'paste'
+                      ? 'text-green-600 border-b-2 border-green-600'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Sao chép / Dán văn bản thô
+                </button>
+              </div>
+
+              {normalizedInputMethod === 'file' ? (
+                <div className="space-y-4 pt-1 animate-in fade-in duration-150">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-green-50/40 p-4 rounded-xl border border-green-100">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 block">Tải file biểu mẫu chuẩn hóa</span>
+                      <p className="text-[10px] text-slate-500 font-sans">File Excel mẫu với đầy đủ 5 cột thông tin thuê bao, người cập nhật, mã HRM, kênh và ngày cập nhật.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadTemplate('normalized')}
+                      className="px-3.5 py-1.5 bg-white border border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer font-sans"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Tải file mẫu .xlsx
+                    </button>
+                  </div>
+
+                  <div className="border-2 border-dashed border-slate-200 hover:border-green-600 transition-all p-8 rounded-2xl text-center bg-slate-50/50 hover:bg-green-50/10 space-y-3 relative group">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={(e) => handleFileImport(e, 'normalized')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="mx-auto bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white p-3 rounded-full inline-flex transition-all">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-slate-700 font-sans">Kéo thả file Excel / CSV hoặc nhấp để chọn file</p>
+                      <p className="text-[10px] text-slate-400 font-sans">Chấp nhận định dạng file .xlsx, .xls, .csv. Hệ thống tự động loại bỏ trùng lặp cũ.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-1 animate-in fade-in duration-150 space-y-4">
+                  <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
+                    Độ rộng cột phân cách: <strong className="font-mono bg-slate-100 text-slate-700 px-1 rounded">Số_thuê_bao,User_cập_nhật,Mã_HRM,Kênh_cập_nhật,Ngày_cập_nhật(DD/MM/YYYY)</strong>. Có thể Copy/Paste nguyên bảng từ Excel/Sheets.
+                  </p>
+
+                  <form onSubmit={handleBulkImportNormalized} className="space-y-4">
+                    <textarea
+                      rows={8}
+                      value={normalizedPasteArea}
+                      onChange={(e) => setNormalizedPasteArea(e.target.value)}
+                      placeholder="Ví dụ dán dữ liệu:&#10;0888999888,Nguyễn Văn A,HRM_0123,App MyVNPT,28/05/2026&#10;0911777888,Trần Thị B,HRM_9988,Quầy giao dịch HL,27/05/2026"
+                      className="w-full p-4 bg-slate-50 border border-slate-205 rounded-xl text-xs font-mono tracking-wider focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-green-500"
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-slate-400 font-sans">
+                        * Tự động lọc trùng thông minh, giữ lại và cảnh báo để không cho phép nạp đè dữ liệu cũ.
+                      </div>
+                      <button
+                        type="submit"
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-6 py-2 rounded-xl transition-all hover:shadow-md cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Nạp dữ liệu chuẩn hóa
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               {/* Normalized Stats notification wrapper */}
               {normalizedImportStats && (

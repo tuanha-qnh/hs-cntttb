@@ -954,28 +954,27 @@ export default function App() {
   if (!currentUser) {
     if (passwordChangeRequiredUser) {
       return (
-        <div className="min-h-screen bg-slate-900 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 backdrop-blur-md relative">
+        <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 relative">
             {/* Design accents */}
-            <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-cyan-500 to-transparent"></div>
-            <div className="absolute top-0 left-0 w-[1px] h-24 bg-gradient-to-b from-cyan-500 to-transparent"></div>
+            <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-blue-500 to-transparent"></div>
             
             <div className="text-center space-y-2">
-              <div className="bg-[#005BAA]/20 text-cyan-400 p-3 rounded-xl border border-cyan-500/20 inline-flex">
+              <div className="bg-[#005BAA]/10 text-[#005BAA] p-3 rounded-xl border border-blue-200/30 inline-flex">
                 <Key className="w-6 h-6 animate-pulse" />
               </div>
-              <h2 className="text-base font-bold text-white font-sans uppercase tracking-wider">
+              <h2 className="text-base font-bold text-slate-800 font-sans uppercase tracking-wider">
                 Yêu Cầu Thay Đổi Mật Khẩu
               </h2>
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
-                Xin chào <strong className="text-cyan-400">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
+              <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                Xin chào <strong className="text-[#005BAA]">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
               </p>
             </div>
 
             <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
                   Mật khẩu bảo mật mới *
                 </label>
                 <input
@@ -985,13 +984,13 @@ export default function App() {
                   placeholder="Nhập tối thiểu 6 ký tự"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#005BAA]" />
                   Xác nhận lại mật khẩu mới *
                 </label>
                 <input
@@ -1001,19 +1000,19 @@ export default function App() {
                   placeholder="Điền lại khớp hoàn toàn"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               {passwordError && (
-                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/30 border border-red-900/40 py-2 rounded-lg">
+                <p className="text-[11px] text-red-600 font-sans font-medium text-center bg-red-50 border border-red-200 py-2 rounded-lg">
                   {passwordError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-700 border border-transparent text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Cập nhật mật khẩu & Vào hệ thống
               </button>
@@ -1024,34 +1023,33 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-900/95 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden relative backdrop-blur-sm">
-          {/* Tech lines */}
-          <div className="absolute top-0 right-0 w-32 h-[1px] bg-gradient-to-l from-[#005BAA] to-transparent"></div>
-          <div className="absolute top-0 right-0 w-[1px] h-32 bg-gradient-to-b from-[#005BAA] to-transparent"></div>
+      <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden relative">
+          {/* Top Blue Accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#005BAA]"></div>
           
           {/* Header VNPT Cover */}
-          <div className="bg-gradient-to-b from-[#005BAA]/10 to-[#005BAA]/3 border-b border-slate-800 p-6 text-center space-y-2 relative">
-            <div className="absolute top-4 right-4 bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800 text-[8px] font-mono tracking-widest uppercase">
+          <div className="bg-[#005BAA]/5 border-b border-slate-100 p-6 text-center space-y-2 relative">
+            <div className="absolute top-4 right-4 bg-blue-50 text-[#005BAA] px-2.5 py-0.5 rounded-full border border-blue-200/50 text-[8px] font-sans font-bold uppercase tracking-wider">
               VNPT Portal
             </div>
-            <div className="bg-slate-950 p-2.5 rounded-xl inline-flex border border-slate-800 mb-1 shadow-inner">
-              <Building2 className="w-8 h-8 text-cyan-400" />
+            <div className="bg-white p-2.5 rounded-2xl inline-flex border border-slate-200 mt-2">
+              <Building2 className="w-8 h-8 text-[#005BAA]" />
             </div>
-            <h1 className="text-sm font-extrabold uppercase tracking-widest text-slate-100 font-sans">
+            <h1 className="text-sm font-extrabold uppercase tracking-widest text-slate-850 font-sans">
               Hệ thống lưu trữ giấy tờ
             </h1>
-            <p className="text-[10px] text-slate-400 tracking-wider font-sans leading-relaxed">
+            <p className="text-[10px] text-slate-500 tracking-wider font-sans leading-relaxed">
               Cập nhật thông tin thuê bao di động VinaPhone
             </p>
           </div>
 
           {/* Form container */}
-          <div className="p-6 space-y-5">
+          <div className="p-6 space-y-5 bg-white">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-bold text-slate-500 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <UserIcon className="w-3.5 h-3.5 text-[#005BAA]" />
                   Tài khoản Giao dịch viên
                 </label>
                 <input
@@ -1061,13 +1059,13 @@ export default function App() {
                   placeholder="Ví dụ: tuanha / admin"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-bold text-slate-500 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
                   Mật khẩu hệ thống
                 </label>
                 <input
@@ -1077,27 +1075,27 @@ export default function App() {
                   placeholder="Mật khẩu riêng"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               {loginError && (
-                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/20 border border-red-900/30 py-2 rounded-lg">
+                <p className="text-[11px] text-red-600 font-sans font-medium text-center bg-red-50 border border-red-200 py-2 rounded-lg">
                   {loginError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-700 border border-transparent text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Đăng nhập hệ thống
               </button>
             </form>
 
             {/* Quick Cloud Connection Setup for Remote Devices / Browsers to pull database */}
-            <div className="border-t border-slate-800/80 pt-4 space-y-3">
-              <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans">
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans animate-all">
                 <span>Hệ thống nội vụ VNPT Quảng Ninh</span>
                 <button
                   type="button"
@@ -1111,7 +1109,7 @@ export default function App() {
                     if (envUrl) setLoginWorkerUrl(envUrl);
                     if (envSecret) setLoginApiSecret(envSecret);
                   }}
-                  className="text-cyan-400 hover:text-cyan-300 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
+                  className="text-[#005BAA] hover:text-blue-705 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
                 >
                   <Cloud className="w-3.5 h-3.5" style={{ display: 'inline' }} />
                   {showLoginCloudConfig ? 'Ẩn liên kết Cloud' : 'Đồng bộ đám mây'}
@@ -1119,24 +1117,24 @@ export default function App() {
               </div>
 
               {showLoginCloudConfig && (
-                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="text-[10px] text-[#005BAA] font-bold uppercase tracking-wider flex items-center gap-1">
                     <Cloud className="w-3.5 h-3.5" />
                     KẾT NỐI TRỰC TUYẾN CLOUDFLARE
                   </div>
 
                   {((import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL && (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET) ? (
-                    <div className="text-[10px] leading-relaxed text-emerald-400 bg-emerald-950/20 border border-emerald-990/40 p-2.5 rounded-lg font-sans">
+                    <div className="text-[10px] leading-relaxed text-emerald-800 bg-emerald-50 border border-emerald-200/50 p-2.5 rounded-lg font-sans">
                       ✓ Đã tích hợp cấu hình đám mây tự động từ máy chủ sản xuất (Vercel Node Keys). Các trường nhập mật mật & liên kết riêng tư đã được ẩn an toàn để bảo mật.
                     </div>
                   ) : (
                     <>
-                      <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
+                      <p className="text-[9px] text-slate-500 font-sans leading-relaxed">
                         Nhập địa chỉ API Worker và mã bảo vệ để tải dữ liệu tài khoản từ cơ sở dữ liệu đám mây về thiết bị này.
                       </p>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
                           Worker Base URL *
                         </label>
                         <input
@@ -1145,12 +1143,12 @@ export default function App() {
                           placeholder="https://...workers.dev"
                           value={loginWorkerUrl}
                           onChange={(e) => setLoginWorkerUrl(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-sans"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
                           API Authorization Secret *
                         </label>
                         <input
@@ -1159,20 +1157,20 @@ export default function App() {
                           placeholder="Nhập khóa API Secret"
                           value={loginApiSecret}
                           onChange={(e) => setLoginApiSecret(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
                         />
                       </div>
                     </>
                   )}
 
                   {loginCloudError && (
-                    <div className="text-[10px] text-rose-400 font-mono leading-relaxed bg-rose-950/20 p-2 rounded border border-rose-900/40">
+                    <div className="text-[10px] text-red-650 bg-red-50 border border-red-200/50 p-2 rounded">
                       ⚠️ {loginCloudError}
                     </div>
                   )}
 
                   {loginCloudStatus === 'success' && (
-                    <div className="text-[10px] text-emerald-400 font-sans leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/40 font-medium">
+                    <div className="text-[10px] text-emerald-800 font-sans leading-relaxed bg-emerald-55/15 p-2 rounded border border-emerald-200/50 font-medium">
                       ✓ Đọc dữ liệu đám mây thành công! Đã cập nhật {users.length} tài khoản giao dịch viên.
                     </div>
                   )}
@@ -1180,7 +1178,7 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={loginCloudStatus === 'testing'}
-                    className="w-full py-2 bg-cyan-650 hover:bg-cyan-600 border border-cyan-500 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full py-2 bg-[#005BAA] hover:bg-blue-750 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     {loginCloudStatus === 'testing' ? (
                       <>

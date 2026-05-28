@@ -63,7 +63,22 @@ CREATE TABLE IF NOT EXISTS subscribers (
 -- Index tìm kiếm tối ưu hóa cho tra cứu nhanh
 CREATE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers(phoneNumber);
 CREATE INDEX IF NOT EXISTS idx_subscribers_idNumber ON subscribers(idNumber);
-CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
+CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);
+
+-- 4. TẠO BẢNG CHIẾN DỊCH KHÁCH HÀNG MỤC TIÊU (DS_TB_MUCTIEU)
+CREATE TABLE IF NOT EXISTS DS_TB_MUCTIEU (
+  So_thue_bao TEXT PRIMARY KEY,
+  Tap_thue_bao TEXT
+);
+
+-- 5. TẠO BẢNG KẾT QUẢ CẬP NHẬT THÔNG TIN THUÊ BAO (KQ_CNTTTB)
+CREATE TABLE IF NOT EXISTS KQ_CNTTTB (
+  So_thue_bao TEXT PRIMARY KEY,
+  User_capnhat TEXT,
+  Ma_hrm_CN TEXT,
+  Kenh_CN TEXT,
+  Ngay_CN TEXT
+);`;
 
   const corsPolicyJson = `[
   {
