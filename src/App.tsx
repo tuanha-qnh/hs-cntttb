@@ -85,6 +85,20 @@ const initialNormalizedSubscribers: NormalizedSubscriber[] = [
   { phoneNumber: '0912888999', updatedByUser: 'Quản trị viên VNPT', hrmCode: 'QN_9999', channel: 'Cửa hàng Hạ Long', updatedAt: '28/05/2026', importedAt: '2026-05-28T01:00:00Z' },
 ];
 
+// Safe LocalStorage monkeypatch to prevent QuotaExceededError crashes
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value) {
+  try {
+    originalSetItem.call(localStorage, key, value);
+  } catch (e: any) {
+    if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+      console.warn(`[LocalStorage] QuotaExceededError: Dung lượng LocalStorage bị đầy khi lưu '${key}'. Ứng dụng vẫn tiếp tục chạy hoàn hảo trên RAM.`);
+    } else {
+      console.error(`[LocalStorage] Lỗi lưu '${key}':`, e);
+    }
+  }
+};
+
 export default function App() {
   // Loaded reactive databases
   const [units, setUnits] = useState<Unit[]>(() => {
@@ -1570,7 +1584,7 @@ export default function App() {
                <SubscriberDataImportModule
                  targetSubscribers={targetSubscribers}
                  normalizedSubscribers={normalizedSubscribers}
-                 onImportTargets={(newTargets) => {
+                 onImportTargets={async (newTargets) => {
                    setTargetSubscribers((prev) => [...prev, ...newTargets]);
                    // Sync to Cloudflare D1 immediately
                    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
@@ -1582,17 +1596,24 @@ export default function App() {
                      if (cleanUrl.endsWith('/')) {
                        cleanUrl = cleanUrl.slice(0, -1);
                      }
-                     fetch(`${cleanUrl}/api/target-subscribers`, {
-                       method: 'POST',
-                       headers: {
-                         'Content-Type': 'application/json',
-                         'x-api-secret': cloudflareConfig.apiSecret
-                       },
-                       body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
-                     }).catch(err => console.error('Lỗi sync targets: ', err));
+                     try {
+                       const res = await fetch(`${cleanUrl}/api/target-subscribers`, {
+                         method: 'POST',
+                         headers: {
+                           'Content-Type': 'application/json',
+                           'x-api-secret': cloudflareConfig.apiSecret
+                         },
+                         body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
+                       });
+                       if (!res.ok) {
+                         console.warn('Lỗi đồng bộ mẻ dữ liệu targets:', res.statusText);
+                       }
+                     } catch (err) {
+                       console.error('Lỗi sync targets: ', err);
+                     }
                    }
                  }}
-                 onImportNormalized={(newNormalized) => {
+                 onImportNormalized={async (newNormalized) => {
                    setNormalizedSubscribers((prev) => [...prev, ...newNormalized]);
                    // Sync to Cloudflare D1 immediately
                    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
@@ -1607,14 +1628,21 @@ export default function App() {
                      if (cleanUrl.endsWith('/')) {
                        cleanUrl = cleanUrl.slice(0, -1);
                      }
-                     fetch(`${cleanUrl}/api/normalized-subscribers`, {
-                       method: 'POST',
-                       headers: {
-                         'Content-Type': 'application/json',
-                         'x-api-secret': cloudflareConfig.apiSecret
-                       },
-                       body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
-                     }).catch(err => console.error('Lỗi sync normalized: ', err));
+                     try {
+                       const res = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
+                         method: 'POST',
+                         headers: {
+                           'Content-Type': 'application/json',
+                           'x-api-secret': cloudflareConfig.apiSecret
+                         },
+                         body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
+                       });
+                       if (!res.ok) {
+                         console.warn('Lỗi đồng bộ mẻ dữ liệu normalized:', res.statusText);
+                       }
+                     } catch (err) {
+                       console.error('Lỗi sync normalized: ', err);
+                     }
                    }
                  }}
                  onClearTargets={() => {

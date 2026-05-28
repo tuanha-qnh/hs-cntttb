@@ -6,8 +6,8 @@ import * as XLSX from 'xlsx';
 interface Props {
   targetSubscribers: TargetSubscriber[];
   normalizedSubscribers: NormalizedSubscriber[];
-  onImportTargets: (newTargets: TargetSubscriber[]) => void;
-  onImportNormalized: (newNormalized: NormalizedSubscriber[]) => void;
+  onImportTargets: (newTargets: TargetSubscriber[]) => Promise<any> | void;
+  onImportNormalized: (newNormalized: NormalizedSubscriber[]) => Promise<any> | void;
   onClearTargets?: () => void;
   onClearNormalized?: () => void;
 }
@@ -41,6 +41,27 @@ export default function SubscriberDataImportModule({
   const [normSingleDate, setNormSingleDate] = useState('');
   const [normalizedImportStats, setNormalizedImportStats] = useState<{ total: number; added: number; skipped: number } | null>(null);
 
+  // Chunk progress state for popup modal
+  const [progress, setProgress] = useState<{
+    isImporting: boolean;
+    totalRows: number;
+    processedRows: number;
+    addedCount: number;
+    skippedCount: number;
+    percentage: number;
+    stageName: string;
+    type: 'target' | 'normalized';
+  }>({
+    isImporting: false,
+    totalRows: 0,
+    processedRows: 0,
+    addedCount: 0,
+    skippedCount: 0,
+    percentage: 0,
+    stageName: '',
+    type: 'target'
+  });
+
   // Download Sample Excel Template
   const handleDownloadTemplate = (type: 'target' | 'normalized') => {
     try {
@@ -73,13 +94,98 @@ export default function SubscriberDataImportModule({
     }
   };
 
+  // Generic scheduler for progressive chunked processing & cloud sync
+  const processInChunks = async <T, R>(
+    items: T[],
+    chunkSize: number,
+    type: 'target' | 'normalized',
+    parser: (chunk: T[]) => { valid: R[]; skipped: number },
+    importer: (valid: R[]) => Promise<any> | void,
+    onFinish: (added: number, skipped: number, total: number) => void
+  ) => {
+    const total = items.length;
+    let processed = 0;
+    let added = 0;
+    let skipped = 0;
+
+    setProgress({
+      isImporting: true,
+      totalRows: total,
+      processedRows: 0,
+      addedCount: 0,
+      skippedCount: 0,
+      percentage: 0,
+      stageName: 'Đang bắt đầu xử lý dòng...',
+      type
+    });
+
+    // Process chunk by chunk sequential
+    for (let index = 0; index < total; index += chunkSize) {
+      const chunk = items.slice(index, index + chunkSize);
+      
+      setProgress(prev => ({
+        ...prev,
+        stageName: `Đang lọc trùng & xử lý dòng ${index + 1} - ${Math.min(index + chunkSize, total)}...`
+      }));
+
+      // Relinquish UI thread lock to let browser paint
+      await new Promise(resolve => setTimeout(resolve, 30));
+
+      const result = parser(chunk);
+      const validItems = result.valid;
+      const skippedInChunk = result.skipped;
+
+      if (validItems.length > 0) {
+        setProgress(prev => ({
+          ...prev,
+          stageName: `Đang đồng bộ ${validItems.length} bản ghi mới lên cơ sở dữ liệu cloud...`
+        }));
+        
+        try {
+          await importer(validItems);
+        } catch (err) {
+          console.error("Lỗi đồng bộ mẻ dữ liệu:", err);
+        }
+      }
+
+      processed += chunk.length;
+      added += validItems.length;
+      skipped += skippedInChunk;
+
+      const percentage = Math.round((processed / total) * 100);
+
+      setProgress({
+        isImporting: true,
+        totalRows: total,
+        processedRows: processed,
+        addedCount: added,
+        skippedCount: skipped,
+        percentage,
+        stageName: `Đã hoàn tất xử lý ${processed}/${total} dòng (${percentage}%)`,
+        type
+      });
+
+      // Spacing out chunks to prevent UI freeze & rate limit peaks
+      await new Promise(resolve => setTimeout(resolve, 75));
+    }
+
+    setProgress(prev => ({
+      ...prev,
+      stageName: '✔️ Hoàn tất đồng bộ dữ liệu!'
+    }));
+
+    await new Promise(resolve => setTimeout(resolve, 400));
+    setProgress(prev => ({ ...prev, isImporting: false }));
+    onFinish(added, skipped, total);
+  };
+
   // Unified File parser logic for excel / csv
-  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>, type: 'target' | 'normalized') => {
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>, type: 'target' | 'normalized') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
@@ -99,72 +205,90 @@ export default function SubscriberDataImportModule({
                          String(rows[0][0] || '').toLowerCase().includes('phone');
         
         const startIndex = isHeader ? 1 : 0;
-        let dupCount = 0;
-        let totalLines = 0;
+        const dataRows = rows.slice(startIndex).filter(row => row && row[0] !== undefined);
 
         if (type === 'target') {
-          const parsedTargets: TargetSubscriber[] = [];
-          
-          for (let i = startIndex; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row || !row[0]) continue;
-            
-            const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
-            const segmentWord = String(row[1] || 'Excel Import').trim();
-            
-            if (!phoneWord) continue;
-            totalLines++;
-            
-            if (/^\d{9,11}$/.test(phoneWord)) {
+          const processedPhonesInSession = new Set<string>();
+
+          const targetParser = (chunk: any[]) => {
+            const valid: TargetSubscriber[] = [];
+            let skipped = 0;
+
+            for (const row of chunk) {
+              if (!row || row[0] === undefined || row[0] === null) {
+                skipped++;
+                continue;
+              }
+              const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
+              const segmentWord = String(row[1] || 'Excel Import').trim();
+
+              if (!phoneWord || !/^\d{9,11}$/.test(phoneWord)) {
+                skipped++;
+                continue;
+              }
+
               const isAlreadyExisting = targetSubscribers.some(t => t.phoneNumber === phoneWord) || 
-                                        parsedTargets.some(t => t.phoneNumber === phoneWord);
+                                        processedPhonesInSession.has(phoneWord);
               if (isAlreadyExisting) {
-                dupCount++;
+                skipped++;
               } else {
-                parsedTargets.push({
+                processedPhonesInSession.add(phoneWord);
+                valid.push({
                   phoneNumber: phoneWord,
                   segment: segmentWord,
                   importedAt: new Date().toISOString(),
                 });
               }
-            } else {
-              dupCount++;
             }
-          }
-          
-          if (parsedTargets.length > 0) {
-            onImportTargets(parsedTargets);
-          }
-          setTargetImportStats({
-            total: totalLines,
-            added: parsedTargets.length,
-            skipped: dupCount
-          });
-          alert(`Đã nạp thành công! Đọc ${totalLines} hàng dòng dán hoặc Excel, thêm mới ${parsedTargets.length} mục tiêu. Bỏ qua trùng lặp: ${dupCount}.`);
+            return { valid, skipped };
+          };
+
+          await processInChunks(
+            dataRows,
+            200,
+            'target',
+            targetParser,
+            onImportTargets,
+            (added, skipped, total) => {
+              setTargetImportStats({
+                total,
+                added,
+                skipped
+              });
+              alert(`Nhập tệp dữ liệu mục tiêu thành công!\nTổng số: ${total} dòng\nThêm mới thành công: ${added} mục\nBỏ qua (trùng/lỗi): ${skipped} mục.`);
+            }
+          );
         } else {
           // Normalized
-          const parsedNormalized: NormalizedSubscriber[] = [];
-          
-          for (let i = startIndex; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row || !row[0]) continue;
-            
-            const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
-            const rawUser = String(row[1] || 'Giao dịch viên').trim();
-            const rawHrm = String(row[2] || 'HRM_001').trim();
-            const rawChannel = String(row[3] || 'Quầy giao dịch').trim();
-            const rawDate = String(row[4] || new Date().toLocaleDateString('vi-VN')).trim();
-            
-            if (!phoneWord) continue;
-            totalLines++;
-            
-            if (/^\d{9,11}$/.test(phoneWord)) {
+          const processedPhonesInSession = new Set<string>();
+
+          const normalizedParser = (chunk: any[]) => {
+            const valid: NormalizedSubscriber[] = [];
+            let skipped = 0;
+
+            for (const row of chunk) {
+              if (!row || row[0] === undefined || row[0] === null) {
+                skipped++;
+                continue;
+              }
+              const phoneWord = String(row[0]).trim().replace(/\s+/g, '');
+              const rawUser = String(row[1] || 'Giao dịch viên').trim();
+              const rawHrm = String(row[2] || 'HRM_001').trim();
+              const rawChannel = String(row[3] || 'Quầy giao dịch').trim();
+              const rawDate = String(row[4] || new Date().toLocaleDateString('vi-VN')).trim();
+
+              if (!phoneWord || !/^\d{9,11}$/.test(phoneWord)) {
+                skipped++;
+                continue;
+              }
+
               const isAlreadyExisting = normalizedSubscribers.some(n => n.phoneNumber === phoneWord) ||
-                                        parsedNormalized.some(n => n.phoneNumber === phoneWord);
+                                        processedPhonesInSession.has(phoneWord);
               if (isAlreadyExisting) {
-                dupCount++;
+                skipped++;
               } else {
-                parsedNormalized.push({
+                processedPhonesInSession.add(phoneWord);
+                valid.push({
                   phoneNumber: phoneWord,
                   updatedByUser: rawUser,
                   hrmCode: rawHrm,
@@ -173,20 +297,25 @@ export default function SubscriberDataImportModule({
                   importedAt: new Date().toISOString(),
                 });
               }
-            } else {
-              dupCount++;
             }
-          }
-          
-          if (parsedNormalized.length > 0) {
-            onImportNormalized(parsedNormalized);
-          }
-          setNormalizedImportStats({
-            total: totalLines,
-            added: parsedNormalized.length,
-            skipped: dupCount
-          });
-          alert(`Đã nạp thành công! Đọc ${totalLines} hàng dòng dán hoặc Excel, thêm mới ${parsedNormalized.length} thuê bao chuẩn hóa. Bỏ qua trùng lặp: ${dupCount}.`);
+            return { valid, skipped };
+          };
+
+          await processInChunks(
+            dataRows,
+            200,
+            'normalized',
+            normalizedParser,
+            onImportNormalized,
+            (added, skipped, total) => {
+              setNormalizedImportStats({
+                total,
+                added,
+                skipped
+              });
+              alert(`Nhập tệp dữ liệu chuẩn hóa thành công!\nTổng số: ${total} dòng\nThêm mới thành công: ${added} mục\nBỏ qua (trùng/lỗi): ${skipped} mục.`);
+            }
+          );
         }
       } catch (err: any) {
         alert('Lỗi phân tích file Excel / CSV: ' + err.message);
@@ -197,52 +326,61 @@ export default function SubscriberDataImportModule({
   };
 
   // Parse Target Subscribers (bulk text paste)
-  const handleBulkImportTargets = (e: React.FormEvent) => {
+  const handleBulkImportTargets = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetPasteArea.trim()) {
       alert('Vui lòng dán dữ liệu danh sách khách hàng mục tiêu.');
       return;
     }
 
-    const lines = targetPasteArea.split('\n');
-    const parsedTargets: TargetSubscriber[] = [];
-    let dupCount = 0;
+    const lines = targetPasteArea.split('\n').filter(l => l.trim());
+    const processedPhonesInSession = new Set<string>();
 
-    lines.forEach(line => {
-      if (!line.trim()) return;
-      // Accept either comma, semicolon or TAB delimiter
-      const parts = line.split(/[,;\t]/);
-      const rawPhone = parts[0]?.trim().replace(/\s+/g, '');
-      const rawSegment = parts[1]?.trim() || 'Tập chiến dịch cơ bản';
+    const targetLineParser = (chunk: string[]) => {
+      const valid: TargetSubscriber[] = [];
+      let skipped = 0;
 
-      if (rawPhone && /^\d{9,11}$/.test(rawPhone)) {
-        // Strict duplicate check against existing master DB state
-        const isAlreadyExisting = targetSubscribers.some(t => t.phoneNumber === rawPhone) || 
-                                  parsedTargets.some(t => t.phoneNumber === rawPhone);
-        if (isAlreadyExisting) {
-          dupCount++;
+      chunk.forEach(line => {
+        const parts = line.split(/[,;\t]/);
+        const rawPhone = parts[0]?.trim().replace(/\s+/g, '');
+        const rawSegment = parts[1]?.trim() || 'Tập chiến dịch cơ bản';
+
+        if (rawPhone && /^\d{9,11}$/.test(rawPhone)) {
+          const isAlreadyExisting = targetSubscribers.some(t => t.phoneNumber === rawPhone) || 
+                                    processedPhonesInSession.has(rawPhone);
+          if (isAlreadyExisting) {
+            skipped++;
+          } else {
+            processedPhonesInSession.add(rawPhone);
+            valid.push({
+              phoneNumber: rawPhone,
+              segment: rawSegment,
+              importedAt: new Date().toISOString(),
+            });
+          }
         } else {
-          parsedTargets.push({
-            phoneNumber: rawPhone,
-            segment: rawSegment,
-            importedAt: new Date().toISOString(),
-          });
+          skipped++;
         }
+      });
+      return { valid, skipped };
+    };
+
+    await processInChunks(
+      lines,
+      200,
+      'target',
+      targetLineParser,
+      onImportTargets,
+      (added, skipped, total) => {
+        setTargetImportStats({
+          total,
+          added,
+          skipped
+        });
+        setTargetPasteArea('');
+        alert(`Dán dữ liệu danh sách thuê bao mục tiêu thành công!\nTổng số: ${total} dòng\nThêm mới: ${added} mục\nBỏ qua trùng lặp/sai sót: ${skipped} mục.`);
       }
-    });
-
-    if (parsedTargets.length > 0) {
-      onImportTargets(parsedTargets);
-    }
-
-    setTargetImportStats({
-      total: lines.filter(l => l.trim()).length,
-      added: parsedTargets.length,
-      skipped: dupCount
-    });
-
-    setTargetPasteArea('');
-    alert(`Import thành công! Đã thêm mới ${parsedTargets.length} thuê bao mục tiêu. Bỏ qua trùng lặp: ${dupCount}.`);
+    );
   };
 
   // Add individual Target Subscriber
@@ -274,58 +412,67 @@ export default function SubscriberDataImportModule({
   };
 
   // Parse Standardized / Normalized list (bulk text paste)
-  const handleBulkImportNormalized = (e: React.FormEvent) => {
+  const handleBulkImportNormalized = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!normalizedPasteArea.trim()) {
       alert('Vui lòng dán dữ liệu danh sách thuê bao chuẩn hóa.');
       return;
     }
 
-    const lines = normalizedPasteArea.split('\n');
-    const parsedNormalized: NormalizedSubscriber[] = [];
-    let dupCount = 0;
+    const lines = normalizedPasteArea.split('\n').filter(l => l.trim());
+    const processedPhonesInSession = new Set<string>();
 
-    lines.forEach(line => {
-      if (!line.trim()) return;
-      // Split by comma, semicolon or TAB
-      const parts = line.split(/[,;\t]/);
-      const rawPhone = parts[0]?.trim().replace(/\s+/g, '');
-      const rawUser = parts[1]?.trim() || 'Hệ thống tự động';
-      const rawHrm = parts[2]?.trim() || 'HRM_UNKNOWN';
-      const rawChannel = parts[3]?.trim() || 'Cửa hàng';
-      const rawDate = parts[4]?.trim() || new Date().toLocaleDateString('vi-VN');
+    const normalizedLineParser = (chunk: string[]) => {
+      const valid: NormalizedSubscriber[] = [];
+      let skipped = 0;
 
-      if (rawPhone && /^\d{9,11}$/.test(rawPhone)) {
-        // Strict duplicate check matches against both master DB state & newly parsed state
-        const isAlreadyExisting = normalizedSubscribers.some(n => n.phoneNumber === rawPhone) ||
-                                  parsedNormalized.some(n => n.phoneNumber === rawPhone);
-        if (isAlreadyExisting) {
-          dupCount++;
+      chunk.forEach(line => {
+        const parts = line.split(/[,;\t]/);
+        const rawPhone = parts[0]?.trim().replace(/\s+/g, '');
+        const rawUser = parts[1]?.trim() || 'Hệ thống tự động';
+        const rawHrm = parts[2]?.trim() || 'HRM_UNKNOWN';
+        const rawChannel = parts[3]?.trim() || 'Cửa hàng';
+        const rawDate = parts[4]?.trim() || new Date().toLocaleDateString('vi-VN');
+
+        if (rawPhone && /^\d{9,11}$/.test(rawPhone)) {
+          const isAlreadyExisting = normalizedSubscribers.some(n => n.phoneNumber === rawPhone) ||
+                                    processedPhonesInSession.has(rawPhone);
+          if (isAlreadyExisting) {
+            skipped++;
+          } else {
+            processedPhonesInSession.add(rawPhone);
+            valid.push({
+              phoneNumber: rawPhone,
+              updatedByUser: rawUser,
+              hrmCode: rawHrm,
+              channel: rawChannel,
+              updatedAt: rawDate,
+              importedAt: new Date().toISOString(),
+            });
+          }
         } else {
-          parsedNormalized.push({
-            phoneNumber: rawPhone,
-            updatedByUser: rawUser,
-            hrmCode: rawHrm,
-            channel: rawChannel,
-            updatedAt: rawDate,
-            importedAt: new Date().toISOString(),
-          });
+          skipped++;
         }
+      });
+      return { valid, skipped };
+    };
+
+    await processInChunks(
+      lines,
+      200,
+      'normalized',
+      normalizedLineParser,
+      onImportNormalized,
+      (added, skipped, total) => {
+        setNormalizedImportStats({
+          total,
+          added,
+          skipped
+        });
+        setNormalizedPasteArea('');
+        alert(`Dán dữ liệu thuê bao chuẩn hóa thành công!\nTổng số: ${total} dòng dán\nThêm mới: ${added} mục\nBỏ qua trùng cấu trúc hoặc dữ liệu cũ: ${skipped} mục.`);
       }
-    });
-
-    if (parsedNormalized.length > 0) {
-      onImportNormalized(parsedNormalized);
-    }
-
-    setNormalizedImportStats({
-      total: lines.filter(l => l.trim()).length,
-      added: parsedNormalized.length,
-      skipped: dupCount
-    });
-
-    setNormalizedPasteArea('');
-    alert(`Import thành công! Đã thêm mới ${parsedNormalized.length} thuê bao đã chuẩn hóa. Bỏ qua trùng lặp: ${dupCount}.`);
+    );
   };
 
   // Add individual Normalized Subscriber
@@ -880,6 +1027,71 @@ export default function SubscriberDataImportModule({
           </div>
         </div>
       </div>
+
+      {/* Visual Import Progress Popup Modal */}
+      {progress.isImporting && (
+        <div id="import-progress-popup" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden p-6 relative">
+            {/* Design blue decorative header line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#005BAA] to-cyan-500"></div>
+
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[#005BAA]">
+                  <Database className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="font-sans font-bold text-slate-800 text-sm">Hệ thống đang nạp dữ liệu...</h3>
+                  <p className="font-sans text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                    {progress.type === 'target' ? 'Thuê bao mục tiêu' : 'Thuê bao chuẩn hóa'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4.5 space-y-3 font-sans text-xs">
+                <div className="flex justify-between items-center text-slate-650">
+                  <span>Trạng thái:</span>
+                  <span className="font-bold text-slate-800 text-right max-w-[240px] truncate">{progress.stageName}</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5 pt-1.5 text-center">
+                  <div className="bg-white border border-slate-100 rounded-lg p-2 shadow-2xs">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Tổng dòng</div>
+                    <div className="text-sm font-extrabold text-slate-700 font-mono mt-0.5">{progress.totalRows}</div>
+                  </div>
+                  <div className="bg-green-50/50 border border-green-100 rounded-lg p-2 shadow-2xs">
+                    <div className="text-[10px] text-green-600 font-bold uppercase">Mới</div>
+                    <div className="text-sm font-extrabold text-green-700 font-mono mt-0.5">+{progress.addedCount}</div>
+                  </div>
+                  <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-2 shadow-2xs">
+                    <div className="text-[10px] text-amber-600 font-bold uppercase">Bỏ qua / Trùng</div>
+                    <div className="text-sm font-extrabold text-amber-700 font-mono mt-0.5">+{progress.skippedCount}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Graphical Bar Progress percentage indicator */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] font-bold font-sans">
+                  <span className="text-slate-500 font-medium">Tiến trình nạp và đồng bộ:</span>
+                  <span className="text-[#005BAA] font-extrabold font-mono text-sm">{progress.percentage}%</span>
+                </div>
+                
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner border border-slate-200/50">
+                  <div 
+                    className="bg-gradient-to-r from-[#005BAA] to-cyan-500 h-full rounded-full transition-all duration-300 bg-[length:24px_24px] bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] animate-[pulse_1.5s_infinite_ease-in-out]"
+                    style={{ width: `${progress.percentage}%` }}
+                  ></div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 text-center italic pt-1 font-sans">
+                  💡 Vui lòng không đóng trình duyệt hoặc làm mới trang để đảm bảo dữ liệu toàn vẹn.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
