@@ -19,15 +19,16 @@ export default function InteractiveGuide() {
   const schemaSql = `-- 1 TẠO BẢNG ĐƠN VỊ & CHI NHÁNH
 CREATE TABLE IF NOT EXISTS units (
   id TEXT PRIMARY KEY,
+  unit_id TEXT UNIQUE DEFAULT NULL,
   name TEXT NOT NULL,
   parentId TEXT
 );
 
 -- Chèn dữ liệu mẫu cho danh mục Đơn vị gốc
-INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_ROOT', 'VNPT Quảng Ninh', NULL);
-INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_HL', 'Trung tâm KD Hạ Long', 'UN_ROOT');
-INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_BC', 'Phòng BH Bãi Cháy', 'UN_HL');
-INSERT OR IGNORE INTO units (id, name, parentId) VALUES ('UN_CP', 'Trung tâm KD Cẩm Phả', 'UN_ROOT');
+INSERT OR IGNORE INTO units (id, unit_id, name, parentId) VALUES ('UN_ROOT', 'UN_ROOT', 'VNPT Quảng Ninh', NULL);
+INSERT OR IGNORE INTO units (id, unit_id, name, parentId) VALUES ('UN_HL', 'UN_HL', 'Trung tâm KD Hạ Long', 'UN_ROOT');
+INSERT OR IGNORE INTO units (id, unit_id, name, parentId) VALUES ('UN_BC', 'UN_BC', 'Phòng BH Bãi Cháy', 'UN_HL');
+INSERT OR IGNORE INTO units (id, unit_id, name, parentId) VALUES ('UN_CP', 'UN_CP', 'Trung tâm KD Cẩm Phả', 'UN_ROOT');
 
 -- 2. TẠO BẢNG NHÂN SỰ & TÀI KHOẢN GIAO DỊCH VIÊN
 CREATE TABLE IF NOT EXISTS users (
@@ -253,8 +254,8 @@ export default {
         } else {
           // "create" hoặc "update"
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO units (id, name, parentId) VALUES (?1, ?2, ?3)"
-          ).bind(unit.id, unit.name, unit.parentId).run();
+            "INSERT OR REPLACE INTO units (id, unit_id, name, parentId) VALUES (?1, ?2, ?3, ?4)"
+          ).bind(unit.id, unit.unit_id || unit.id, unit.name, unit.parentId).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -498,8 +499,8 @@ export default {
         } else {
           // "create" hoặc "update"
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO units (id, name, parentId) VALUES (?1, ?2, ?3)"
-          ).bind(unit.id, unit.name, unit.parentId).run();
+            "INSERT OR REPLACE INTO units (id, unit_id, name, parentId) VALUES (?1, ?2, ?3, ?4)"
+          ).bind(unit.id, unit.unit_id || unit.id, unit.name, unit.parentId).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {

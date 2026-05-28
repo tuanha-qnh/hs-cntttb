@@ -80,6 +80,7 @@ export default function AdminModule({
   const [editingUnitName, setEditingUnitName] = useState('');
   const [newUnitParentId, setNewUnitParentId] = useState<string | null>(null);
   const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitCode, setNewUnitCode] = useState('');
   const [expandedUnitIds, setExpandedUnitIds] = useState<Record<string, boolean>>({
     'UN_ROOT': true,
     'UN_HL': true
@@ -91,14 +92,35 @@ export default function AdminModule({
 
   const handleAddUnit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUnitName.trim()) return;
+    const code = newUnitCode.trim().toUpperCase();
+    const name = newUnitName.trim();
+    if (!code) {
+      alert('Vui lòng nhập Mã đơn vị.');
+      return;
+    }
+    if (!name) {
+      alert('Vui lòng nhập Tên đơn vị.');
+      return;
+    }
+
+    // Tiêu chí kiểm tra nghiêm ngặt không cho phép trùng mã đơn vị (Primary Key)
+    const isDuplicate = units.some(
+      u => u.id.toUpperCase() === code || (u.unit_id && u.unit_id.toUpperCase() === code)
+    );
+    if (isDuplicate) {
+      alert(`⚠️ Mã đơn vị "${code}" đã tồn tại trong hệ thống! Vui lòng chọn một mã khác độc bản để đảm bảo dữ liệu không bị trùng lặp.`);
+      return;
+    }
+
     const newUnit: Unit = {
-      id: 'UN_' + Date.now(),
-      name: newUnitName.trim(),
+      id: code,
+      unit_id: code,
+      name: name,
       parentId: newUnitParentId
     };
     onUnitsChange([...units, newUnit]);
     setNewUnitName('');
+    setNewUnitCode('');
     setNewUnitParentId(null);
 
     // Sync to Cloudflare D1
@@ -181,7 +203,12 @@ export default function AdminModule({
                       <button onClick={() => setEditingUnitId(null)} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-semibold">Hủy</button>
                     </div>
                   ) : (
-                    <span className="text-xs font-semibold text-slate-700 font-sans">{unit.name}</span>
+                    <span className="text-xs font-semibold text-slate-700 font-sans flex items-center gap-1.5 flex-wrap">
+                      <span>{unit.name}</span>
+                      <span className="text-[9px] font-mono text-slate-400 font-normal bg-slate-100/80 border border-slate-200/50 px-1.5 py-0.5 rounded-md">
+                        Mã: {unit.unit_id || unit.id}
+                      </span>
+                    </span>
                   )}
                 </div>
 
@@ -550,6 +577,18 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                       <option key={u.id} value={u.id}>{u.name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 font-sans">Mã đơn vị (Primary Key - Độc nhất) *</span>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Gợi ý: UN_BC, CP_BH, v.v."
+                    value={newUnitCode}
+                    onChange={(e) => setNewUnitCode(e.target.value.replace(/\s+/g, '').toUpperCase())}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none font-mono tracking-wider"
+                  />
                 </div>
 
                 <div className="space-y-1">
