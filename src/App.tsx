@@ -6,15 +6,17 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, Search, BarChart3, Cloud, LogOut, Key, CheckCircle, 
-  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save 
+  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save, Database, ClipboardCheck
 } from 'lucide-react';
 
-import { Unit, User, SubscriberRecord, CloudflareConfig } from './types';
+import { Unit, User, SubscriberRecord, CloudflareConfig, TargetSubscriber, NormalizedSubscriber } from './types';
 import SubscriberEntryModule from './components/SubscriberEntryModule';
 import SubscriberLookupModule from './components/SubscriberLookupModule';
 import DashboardStatsModule from './components/DashboardStatsModule';
 import AdminModule from './components/AdminModule';
 import InteractiveGuide from './components/InteractiveGuide';
+import SubscriberStatusLookupModule from './components/SubscriberStatusLookupModule';
+import SubscriberDataImportModule from './components/SubscriberDataImportModule';
 
 // ----------------------------------------------------------------------
 // INITIAL MOCK DATABASES FOR TESTING & PRESENTATION out of the box
@@ -71,6 +73,18 @@ const initialSubscribers: SubscriberRecord[] = [
   }
 ];
 
+const initialTargetSubscribers: TargetSubscriber[] = [
+  { phoneNumber: '0911223344', segment: 'Chiến dịch Địa bàn Hạ Long đợt 1', importedAt: '2026-05-27T01:00:00Z' },
+  { phoneNumber: '0912334455', segment: 'Tập thuê bao VIP đầu số cổ 091', importedAt: '2026-05-27T01:00:00Z' },
+  { phoneNumber: '0913445566', segment: 'Bổ sung rà soát Bãi Cháy', importedAt: '2026-05-27T02:00:00Z' },
+  { phoneNumber: '0888999888', segment: 'Chiến dịch đầu số đẹp 088', importedAt: '2026-05-27T03:00:00Z' },
+];
+
+const initialNormalizedSubscribers: NormalizedSubscriber[] = [
+  { phoneNumber: '0911777888', updatedByUser: 'Trần Tuấn Anh', hrmCode: 'QN_0123', channel: 'App MyVNPT', updatedAt: '27/05/2026', importedAt: '2026-05-27T05:00:00Z' },
+  { phoneNumber: '0912888999', updatedByUser: 'Quản trị viên VNPT', hrmCode: 'QN_9999', channel: 'Cửa hàng Hạ Long', updatedAt: '28/05/2026', importedAt: '2026-05-28T01:00:00Z' },
+];
+
 export default function App() {
   // Loaded reactive databases
   const [units, setUnits] = useState<Unit[]>(() => {
@@ -103,6 +117,26 @@ export default function App() {
       console.error('Error parsing vnpt_subscribers from localStorage, resetting:', e);
       localStorage.removeItem('vnpt_subscribers');
       return initialSubscribers;
+    }
+  });
+
+  const [targetSubscribers, setTargetSubscribers] = useState<TargetSubscriber[]>(() => {
+    try {
+      const saved = localStorage.getItem('vnpt_target_subscribers');
+      return saved ? JSON.parse(saved) : initialTargetSubscribers;
+    } catch (e) {
+      console.error('Error parsing target subscribers from localStorage:', e);
+      return initialTargetSubscribers;
+    }
+  });
+
+  const [normalizedSubscribers, setNormalizedSubscribers] = useState<NormalizedSubscriber[]>(() => {
+    try {
+      const saved = localStorage.getItem('vnpt_normalized_subscribers');
+      return saved ? JSON.parse(saved) : initialNormalizedSubscribers;
+    } catch (e) {
+      console.error('Error parsing normalized subscribers from localStorage:', e);
+      return initialNormalizedSubscribers;
     }
   });
 
@@ -206,7 +240,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin' | 'subscriber-status' | 'import-data'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Automatically parse setup query parameters on load for device setup
@@ -305,6 +339,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('vnpt_subscribers', JSON.stringify(subscribers));
   }, [subscribers]);
+
+  useEffect(() => {
+    localStorage.setItem('vnpt_target_subscribers', JSON.stringify(targetSubscribers));
+  }, [targetSubscribers]);
+
+  useEffect(() => {
+    localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(normalizedSubscribers));
+  }, [normalizedSubscribers]);
 
   useEffect(() => {
     localStorage.setItem('vnpt_cloudflare', JSON.stringify(cloudflareConfig));
@@ -1274,6 +1316,18 @@ export default function App() {
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Hồ sơ lưu trữ</span>
               </button>
 
+              <button
+                onClick={() => setCurrentTab('subscriber-status')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                  currentTab === 'subscriber-status'
+                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <ClipboardCheck className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'subscriber-status' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu chuẩn hóa</span>
+              </button>
+
               {currentUser?.username === 'admin' && (
                 <button
                   onClick={() => setCurrentTab('guide')}
@@ -1308,6 +1362,18 @@ export default function App() {
                     <Users className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
                     <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Quản trị Hệ thống</span>
                   </button>
+
+                  <button
+                    onClick={() => setCurrentTab('import-data')}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                      currentTab === 'import-data'
+                        ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Database className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'import-data' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                    <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cập nhật dữ liệu đầu vào (Import)</span>
+                  </button>
                 </div>
               )}
             </nav>
@@ -1333,6 +1399,8 @@ export default function App() {
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
                 {currentTab === 'guide' && 'HƯỚNG DẪN CẤU HÌNH CLOUDFLARE TOÀN DIỆN'}
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
+                {currentTab === 'subscriber-status' && 'TRA CỨU TRẠNG THÁI CHUẨN HÓA'}
+                {currentTab === 'import-data' && 'BỘ LỌC CẬP NHẬT CHIẾN DỊCH (IMPORT)'}
               </h2>
               <p className="text-xs text-slate-500 font-sans mt-0.5">
                 {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
@@ -1340,6 +1408,8 @@ export default function App() {
                 {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng.'}
                 {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
                 {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
+                {currentTab === 'subscriber-status' && 'Đối soát trực tiếp trạng thái cập nhật, người phụ trách và kênh ghi nhận.'}
+                {currentTab === 'import-data' && 'Đồng bộ danh sách khách hàng mục tiêu và thuê bao chuẩn hóa, lọc trùng lớp thông minh.'}
               </p>
             </div>
 
@@ -1391,6 +1461,28 @@ export default function App() {
                 onUsersChange={setUsers}
                 onConfigChange={handleConfigChange}
                 onSyncLocalToCloud={handleSyncLocalToCloud}
+              />
+            )}
+
+            {currentTab === 'subscriber-status' && (
+              <SubscriberStatusLookupModule
+                targetSubscribers={targetSubscribers}
+                normalizedSubscribers={normalizedSubscribers}
+              />
+            )}
+
+            {currentTab === 'import-data' && currentUser.role === 'Admin' && (
+              <SubscriberDataImportModule
+                targetSubscribers={targetSubscribers}
+                normalizedSubscribers={normalizedSubscribers}
+                onImportTargets={(newTargets) => {
+                  setTargetSubscribers((prev) => [...prev, ...newTargets]);
+                }}
+                onImportNormalized={(newNormalized) => {
+                  setNormalizedSubscribers((prev) => [...prev, ...newNormalized]);
+                }}
+                onClearTargets={() => setTargetSubscribers([])}
+                onClearNormalized={() => setNormalizedSubscribers([])}
               />
             )}
           </div>

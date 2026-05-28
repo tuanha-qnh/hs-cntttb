@@ -47,3 +47,19 @@ export interface DashboardStats {
   recordsToday: number;
   recordsByUnit: { [unitId: string]: number };
 }
+
+export interface TargetSubscriber {
+  phoneNumber: string;
+  segment: string; // Tập thuê bao
+  importedAt: string;
+}
+
+export interface NormalizedSubscriber {
+  phoneNumber: string;
+  updatedByUser: string; // User cập nhật
+  hrmCode: string; // Mã HRM user cập nhật
+  channel: string; // Kênh cập nhật
+  updatedAt: string; // Ngày ghi nhận kết quả cập nhật (DD/MM/YYYY)
+  importedAt: string;
+}
+
