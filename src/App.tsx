@@ -1274,17 +1274,19 @@ export default function App() {
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Hồ sơ lưu trữ</span>
               </button>
 
-              <button
-                onClick={() => setCurrentTab('guide')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
-                  currentTab === 'guide'
-                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <Cloud className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'guide' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cẩm tay chỉ việc D1/R2</span>
-              </button>
+              {currentUser?.username === 'admin' && (
+                <button
+                  onClick={() => setCurrentTab('guide')}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                    currentTab === 'guide'
+                      ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Cloud className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'guide' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                  <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cẩm tay chỉ việc D1/R2</span>
+                </button>
+              )}
 
               {/* Guard view for administrator credentials */}
               {currentUser.role === 'Admin' && (
@@ -1375,7 +1377,7 @@ export default function App() {
               <SubscriberLookupModule records={subscribers} />
             )}
 
-            {currentTab === 'guide' && (
+            {currentTab === 'guide' && currentUser?.username === 'admin' && (
               <InteractiveGuide />
             )}
 
