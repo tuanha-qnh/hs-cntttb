@@ -6,17 +6,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, Search, BarChart3, Cloud, LogOut, Key, CheckCircle, 
-  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save, Database, ClipboardCheck
+  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save 
 } from 'lucide-react';
 
-import { Unit, User, SubscriberRecord, CloudflareConfig, TargetSubscriber, NormalizedSubscriber } from './types';
+import { Unit, User, SubscriberRecord, CloudflareConfig } from './types';
 import SubscriberEntryModule from './components/SubscriberEntryModule';
 import SubscriberLookupModule from './components/SubscriberLookupModule';
 import DashboardStatsModule from './components/DashboardStatsModule';
 import AdminModule from './components/AdminModule';
 import InteractiveGuide from './components/InteractiveGuide';
-import SubscriberStatusLookupModule from './components/SubscriberStatusLookupModule';
-import SubscriberDataImportModule from './components/SubscriberDataImportModule';
 
 // ----------------------------------------------------------------------
 // INITIAL MOCK DATABASES FOR TESTING & PRESENTATION out of the box
@@ -73,32 +71,6 @@ const initialSubscribers: SubscriberRecord[] = [
   }
 ];
 
-const initialTargetSubscribers: TargetSubscriber[] = [
-  { phoneNumber: '0911223344', segment: 'Chiến dịch Địa bàn Hạ Long đợt 1', importedAt: '2026-05-27T01:00:00Z' },
-  { phoneNumber: '0912334455', segment: 'Tập thuê bao VIP đầu số cổ 091', importedAt: '2026-05-27T01:00:00Z' },
-  { phoneNumber: '0913445566', segment: 'Bổ sung rà soát Bãi Cháy', importedAt: '2026-05-27T02:00:00Z' },
-  { phoneNumber: '0888999888', segment: 'Chiến dịch đầu số đẹp 088', importedAt: '2026-05-27T03:00:00Z' },
-];
-
-const initialNormalizedSubscribers: NormalizedSubscriber[] = [
-  { phoneNumber: '0911777888', updatedByUser: 'Trần Tuấn Anh', hrmCode: 'QN_0123', channel: 'App MyVNPT', updatedAt: '27/05/2026', importedAt: '2026-05-27T05:00:00Z' },
-  { phoneNumber: '0912888999', updatedByUser: 'Quản trị viên VNPT', hrmCode: 'QN_9999', channel: 'Cửa hàng Hạ Long', updatedAt: '28/05/2026', importedAt: '2026-05-28T01:00:00Z' },
-];
-
-// Safe LocalStorage monkeypatch to prevent QuotaExceededError crashes
-const originalSetItem = localStorage.setItem;
-localStorage.setItem = function(key, value) {
-  try {
-    originalSetItem.call(localStorage, key, value);
-  } catch (e: any) {
-    if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-      console.warn(`[LocalStorage] QuotaExceededError: Dung lượng LocalStorage bị đầy khi lưu '${key}'. Ứng dụng vẫn tiếp tục chạy hoàn hảo trên RAM.`);
-    } else {
-      console.error(`[LocalStorage] Lỗi lưu '${key}':`, e);
-    }
-  }
-};
-
 export default function App() {
   // Loaded reactive databases
   const [units, setUnits] = useState<Unit[]>(() => {
@@ -131,26 +103,6 @@ export default function App() {
       console.error('Error parsing vnpt_subscribers from localStorage, resetting:', e);
       localStorage.removeItem('vnpt_subscribers');
       return initialSubscribers;
-    }
-  });
-
-  const [targetSubscribers, setTargetSubscribers] = useState<TargetSubscriber[]>(() => {
-    try {
-      const saved = localStorage.getItem('vnpt_target_subscribers');
-      return saved ? JSON.parse(saved) : initialTargetSubscribers;
-    } catch (e) {
-      console.error('Error parsing target subscribers from localStorage:', e);
-      return initialTargetSubscribers;
-    }
-  });
-
-  const [normalizedSubscribers, setNormalizedSubscribers] = useState<NormalizedSubscriber[]>(() => {
-    try {
-      const saved = localStorage.getItem('vnpt_normalized_subscribers');
-      return saved ? JSON.parse(saved) : initialNormalizedSubscribers;
-    } catch (e) {
-      console.error('Error parsing normalized subscribers from localStorage:', e);
-      return initialNormalizedSubscribers;
     }
   });
 
@@ -254,7 +206,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin' | 'subscriber-status' | 'import-data'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Automatically parse setup query parameters on load for device setup
@@ -324,60 +276,14 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-                canImportData: u.canImportData === 1 || u.canImportData === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
             }
           }
 
-          // 4. Sync targets (danh sách thuê bao mục tiêu)
-          try {
-            const targetsRes = await fetch(`${cleanUrl}/api/target-subscribers`, {
-              headers: { 'x-api-secret': decodedApiSecret }
-            });
-            if (targetsRes.ok) {
-              const externalTargets = await targetsRes.json();
-              if (Array.isArray(externalTargets)) {
-                const mapped = externalTargets.map((item: any) => ({
-                  phoneNumber: item.So_thue_bao,
-                  segment: item.Tap_thue_bao,
-                  importedAt: new Date().toISOString()
-                }));
-                setTargetSubscribers(mapped);
-                localStorage.setItem('vnpt_target_subscribers', JSON.stringify(mapped));
-              }
-            }
-          } catch (err) {
-            console.error('Lỗi sync targets đợt 1:', err);
-          }
-
-          // 5. Sync normalized (danh sách thuê bao chuẩn hóa)
-          try {
-            const normalizedRes = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
-              headers: { 'x-api-secret': decodedApiSecret }
-            });
-            if (normalizedRes.ok) {
-              const externalNormalized = await normalizedRes.json();
-              if (Array.isArray(externalNormalized)) {
-                const mapped = externalNormalized.map((item: any) => ({
-                  phoneNumber: item.So_thue_bao,
-                  updatedByUser: item.User_capnhat,
-                  hrmCode: item.Ma_hrm_CN,
-                  channel: item.Kenh_CN,
-                  updatedAt: item.Ngay_CN,
-                  importedAt: new Date().toISOString()
-                }));
-                setNormalizedSubscribers(mapped);
-                localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(mapped));
-              }
-            }
-          } catch (err) {
-            console.error('Lỗi sync normalized đợt 1:', err);
-          }
-
-          alert('🔥 ĐỒNG BỘ TRỰC TUYẾN THÀNH CÔNG!\nTrình duyệt đã nạp cấu hình tự động Cloudflare D1 + R2.\nDữ liệu tài khoản giao dịch viên cùng dữ liệu chuẩn hóa đã đồng bộ về máy. Bạn có thể đăng nhập ngay lập tức!');
+          alert('🔥 ĐỒNG BỘ TRỰC TUYẾN THÀNH CÔNG!\nTrình duyệt đã nạp cấu hình tự động Cloudflare D1 + R2.\nDữ liệu tài khoản giao dịch viên đã đồng bộ về máy. Bạn có thể đăng nhập ngay lập tức!');
         } catch (err: any) {
           alert('Cấu hình liên kết tự động thành công nhưng lỗi đồng bộ: ' + (err.message || err));
         }
@@ -399,14 +305,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('vnpt_subscribers', JSON.stringify(subscribers));
   }, [subscribers]);
-
-  useEffect(() => {
-    localStorage.setItem('vnpt_target_subscribers', JSON.stringify(targetSubscribers));
-  }, [targetSubscribers]);
-
-  useEffect(() => {
-    localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(normalizedSubscribers));
-  }, [normalizedSubscribers]);
 
   useEffect(() => {
     localStorage.setItem('vnpt_cloudflare', JSON.stringify(cloudflareConfig));
@@ -475,8 +373,7 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-                canImportData: u.canImportData === 1 || u.canImportData === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -516,51 +413,6 @@ export default function App() {
               setSubscribers(externalSubs);
               localStorage.setItem('vnpt_subscribers', JSON.stringify(externalSubs));
             }
-          }
-
-          // Fetch targets (danh sách thuê bao mục tiêu)
-          try {
-            const targetsRes = await fetch(`${cleanUrl}/api/target-subscribers`, {
-              headers: { 'x-api-secret': activeSecret }
-            });
-            if (targetsRes.ok) {
-              const externalTargets = await targetsRes.json();
-              if (Array.isArray(externalTargets)) {
-                const mapped = externalTargets.map((item: any) => ({
-                  phoneNumber: item.So_thue_bao,
-                  segment: item.Tap_thue_bao,
-                  importedAt: new Date().toISOString()
-                }));
-                setTargetSubscribers(mapped);
-                localStorage.setItem('vnpt_target_subscribers', JSON.stringify(mapped));
-              }
-            }
-          } catch (err) {
-            console.warn('Lỗi tải danh sách KH mục tiêu từ cloud:', err);
-          }
-
-          // Fetch normalized (danh sách thuê bao chuẩn hóa)
-          try {
-            const normalizedRes = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
-              headers: { 'x-api-secret': activeSecret }
-            });
-            if (normalizedRes.ok) {
-              const externalNormalized = await normalizedRes.json();
-              if (Array.isArray(externalNormalized)) {
-                const mapped = externalNormalized.map((item: any) => ({
-                  phoneNumber: item.So_thue_bao,
-                  updatedByUser: item.User_capnhat,
-                  hrmCode: item.Ma_hrm_CN,
-                  channel: item.Kenh_CN,
-                  updatedAt: item.Ngay_CN,
-                  importedAt: new Date().toISOString()
-                }));
-                setNormalizedSubscribers(mapped);
-                localStorage.setItem('vnpt_normalized_subscribers', JSON.stringify(mapped));
-              }
-            }
-          } catch (err) {
-            console.warn('Lỗi tải danh sách thuê bao chuẩn hóa từ cloud:', err);
           }
 
           console.log('✓ [Auto-Sync] Đồng bộ dữ liệu thành công từ đám mây (Cloudflare D1).');
@@ -1060,27 +912,28 @@ export default function App() {
   if (!currentUser) {
     if (passwordChangeRequiredUser) {
       return (
-        <div className="min-h-screen bg-white flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 relative">
+        <div className="min-h-screen bg-slate-900 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 backdrop-blur-md relative">
             {/* Design accents */}
-            <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-blue-500 to-transparent"></div>
+            <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-cyan-500 to-transparent"></div>
+            <div className="absolute top-0 left-0 w-[1px] h-24 bg-gradient-to-b from-cyan-500 to-transparent"></div>
             
             <div className="text-center space-y-2">
-              <div className="bg-[#005BAA]/10 text-[#005BAA] p-3 rounded-xl border border-blue-200/30 inline-flex">
+              <div className="bg-[#005BAA]/20 text-cyan-400 p-3 rounded-xl border border-cyan-500/20 inline-flex">
                 <Key className="w-6 h-6 animate-pulse" />
               </div>
-              <h2 className="text-base font-bold text-slate-800 font-sans uppercase tracking-wider">
+              <h2 className="text-base font-bold text-white font-sans uppercase tracking-wider">
                 Yêu Cầu Thay Đổi Mật Khẩu
               </h2>
-              <p className="text-xs text-slate-500 font-sans leading-relaxed">
-                Xin chào <strong className="text-[#005BAA]">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
+              <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                Xin chào <strong className="text-cyan-400">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
               </p>
             </div>
 
             <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
+                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
                   Mật khẩu bảo mật mới *
                 </label>
                 <input
@@ -1090,13 +943,13 @@ export default function App() {
                   placeholder="Nhập tối thiểu 6 ký tự"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <CheckCircle className="w-3.5 h-3.5 text-[#005BAA]" />
+                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
                   Xác nhận lại mật khẩu mới *
                 </label>
                 <input
@@ -1106,19 +959,19 @@ export default function App() {
                   placeholder="Điền lại khớp hoàn toàn"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
                 />
               </div>
 
               {passwordError && (
-                <p className="text-[11px] text-red-600 font-sans font-medium text-center bg-red-50 border border-red-200 py-2 rounded-lg">
+                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/30 border border-red-900/40 py-2 rounded-lg">
                   {passwordError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-700 border border-transparent text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Cập nhật mật khẩu & Vào hệ thống
               </button>
@@ -1129,33 +982,34 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden relative">
-          {/* Top Blue Accent */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-[#005BAA]"></div>
+      <div className="min-h-screen bg-slate-950 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-900/95 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden relative backdrop-blur-sm">
+          {/* Tech lines */}
+          <div className="absolute top-0 right-0 w-32 h-[1px] bg-gradient-to-l from-[#005BAA] to-transparent"></div>
+          <div className="absolute top-0 right-0 w-[1px] h-32 bg-gradient-to-b from-[#005BAA] to-transparent"></div>
           
           {/* Header VNPT Cover */}
-          <div className="bg-[#005BAA]/5 border-b border-slate-100 p-6 text-center space-y-2 relative">
-            <div className="absolute top-4 right-4 bg-blue-50 text-[#005BAA] px-2.5 py-0.5 rounded-full border border-blue-200/50 text-[8px] font-sans font-bold uppercase tracking-wider">
+          <div className="bg-gradient-to-b from-[#005BAA]/10 to-[#005BAA]/3 border-b border-slate-800 p-6 text-center space-y-2 relative">
+            <div className="absolute top-4 right-4 bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800 text-[8px] font-mono tracking-widest uppercase">
               VNPT Portal
             </div>
-            <div className="bg-white p-2.5 rounded-2xl inline-flex border border-slate-200 mt-2">
-              <Building2 className="w-8 h-8 text-[#005BAA]" />
+            <div className="bg-slate-950 p-2.5 rounded-xl inline-flex border border-slate-800 mb-1 shadow-inner">
+              <Building2 className="w-8 h-8 text-cyan-400" />
             </div>
-            <h1 className="text-sm font-extrabold uppercase tracking-widest text-slate-850 font-sans">
+            <h1 className="text-sm font-extrabold uppercase tracking-widest text-slate-100 font-sans">
               Hệ thống lưu trữ giấy tờ
             </h1>
-            <p className="text-[10px] text-slate-500 tracking-wider font-sans leading-relaxed">
+            <p className="text-[10px] text-slate-400 tracking-wider font-sans leading-relaxed">
               Cập nhật thông tin thuê bao di động VinaPhone
             </p>
           </div>
 
           {/* Form container */}
-          <div className="p-6 space-y-5 bg-white">
+          <div className="p-6 space-y-5">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <UserIcon className="w-3.5 h-3.5 text-[#005BAA]" />
+                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
                   Tài khoản Giao dịch viên
                 </label>
                 <input
@@ -1165,13 +1019,13 @@ export default function App() {
                   placeholder="Ví dụ: tuanha / admin"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
+                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
                   Mật khẩu hệ thống
                 </label>
                 <input
@@ -1181,27 +1035,27 @@ export default function App() {
                   placeholder="Mật khẩu riêng"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               {loginError && (
-                <p className="text-[11px] text-red-600 font-sans font-medium text-center bg-red-50 border border-red-200 py-2 rounded-lg">
+                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/20 border border-red-900/30 py-2 rounded-lg">
                   {loginError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-700 border border-transparent text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Đăng nhập hệ thống
               </button>
             </form>
 
             {/* Quick Cloud Connection Setup for Remote Devices / Browsers to pull database */}
-            <div className="border-t border-slate-100 pt-4 space-y-3">
-              <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans animate-all">
+            <div className="border-t border-slate-800/80 pt-4 space-y-3">
+              <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans">
                 <span>Hệ thống nội vụ VNPT Quảng Ninh</span>
                 <button
                   type="button"
@@ -1215,7 +1069,7 @@ export default function App() {
                     if (envUrl) setLoginWorkerUrl(envUrl);
                     if (envSecret) setLoginApiSecret(envSecret);
                   }}
-                  className="text-[#005BAA] hover:text-blue-705 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
+                  className="text-cyan-400 hover:text-cyan-300 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
                 >
                   <Cloud className="w-3.5 h-3.5" style={{ display: 'inline' }} />
                   {showLoginCloudConfig ? 'Ẩn liên kết Cloud' : 'Đồng bộ đám mây'}
@@ -1223,24 +1077,24 @@ export default function App() {
               </div>
 
               {showLoginCloudConfig && (
-                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="text-[10px] text-[#005BAA] font-bold uppercase tracking-wider flex items-center gap-1">
+                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
                     <Cloud className="w-3.5 h-3.5" />
                     KẾT NỐI TRỰC TUYẾN CLOUDFLARE
                   </div>
 
                   {((import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL && (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET) ? (
-                    <div className="text-[10px] leading-relaxed text-emerald-800 bg-emerald-50 border border-emerald-200/50 p-2.5 rounded-lg font-sans">
+                    <div className="text-[10px] leading-relaxed text-emerald-400 bg-emerald-950/20 border border-emerald-990/40 p-2.5 rounded-lg font-sans">
                       ✓ Đã tích hợp cấu hình đám mây tự động từ máy chủ sản xuất (Vercel Node Keys). Các trường nhập mật mật & liên kết riêng tư đã được ẩn an toàn để bảo mật.
                     </div>
                   ) : (
                     <>
-                      <p className="text-[9px] text-slate-500 font-sans leading-relaxed">
+                      <p className="text-[9px] text-slate-400 font-sans leading-relaxed">
                         Nhập địa chỉ API Worker và mã bảo vệ để tải dữ liệu tài khoản từ cơ sở dữ liệu đám mây về thiết bị này.
                       </p>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
                           Worker Base URL *
                         </label>
                         <input
@@ -1249,12 +1103,12 @@ export default function App() {
                           placeholder="https://...workers.dev"
                           value={loginWorkerUrl}
                           onChange={(e) => setLoginWorkerUrl(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-sans"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
                           API Authorization Secret *
                         </label>
                         <input
@@ -1263,20 +1117,20 @@ export default function App() {
                           placeholder="Nhập khóa API Secret"
                           value={loginApiSecret}
                           onChange={(e) => setLoginApiSecret(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-mono"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
                         />
                       </div>
                     </>
                   )}
 
                   {loginCloudError && (
-                    <div className="text-[10px] text-red-650 bg-red-50 border border-red-200/50 p-2 rounded">
+                    <div className="text-[10px] text-rose-400 font-mono leading-relaxed bg-rose-950/20 p-2 rounded border border-rose-900/40">
                       ⚠️ {loginCloudError}
                     </div>
                   )}
 
                   {loginCloudStatus === 'success' && (
-                    <div className="text-[10px] text-emerald-800 font-sans leading-relaxed bg-emerald-55/15 p-2 rounded border border-emerald-200/50 font-medium">
+                    <div className="text-[10px] text-emerald-400 font-sans leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/40 font-medium">
                       ✓ Đọc dữ liệu đám mây thành công! Đã cập nhật {users.length} tài khoản giao dịch viên.
                     </div>
                   )}
@@ -1284,7 +1138,7 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={loginCloudStatus === 'testing'}
-                    className="w-full py-2 bg-[#005BAA] hover:bg-blue-750 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full py-2 bg-cyan-650 hover:bg-cyan-600 border border-cyan-500 text-white font-bold text-[10px] rounded transition-all cursor-pointer uppercase flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     {loginCloudStatus === 'testing' ? (
                       <>
@@ -1420,18 +1274,6 @@ export default function App() {
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Hồ sơ lưu trữ</span>
               </button>
 
-              <button
-                onClick={() => setCurrentTab('subscriber-status')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
-                  currentTab === 'subscriber-status'
-                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <ClipboardCheck className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'subscriber-status' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu chuẩn hóa</span>
-              </button>
-
               {currentUser?.username === 'admin' && (
                 <button
                   onClick={() => setCurrentTab('guide')}
@@ -1468,23 +1310,6 @@ export default function App() {
                   </button>
                 </div>
               )}
-
-              {/* Import data module privilege */}
-              {(currentUser.role === 'Admin' || currentUser.canImportData) && (
-                <div className="pt-2">
-                  <button
-                    onClick={() => setCurrentTab('import-data')}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
-                      currentTab === 'import-data'
-                        ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <Database className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'import-data' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                    <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cập nhật dữ liệu đầu vào (Import)</span>
-                  </button>
-                </div>
-              )}
             </nav>
 
             {/* Bottom active state indicator */}
@@ -1508,8 +1333,6 @@ export default function App() {
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
                 {currentTab === 'guide' && 'HƯỚNG DẪN CẤU HÌNH CLOUDFLARE TOÀN DIỆN'}
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
-                {currentTab === 'subscriber-status' && 'TRA CỨU TRẠNG THÁI CHUẨN HÓA'}
-                {currentTab === 'import-data' && 'BỘ LỌC CẬP NHẬT CHIẾN DỊCH (IMPORT)'}
               </h2>
               <p className="text-xs text-slate-500 font-sans mt-0.5">
                 {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
@@ -1517,8 +1340,6 @@ export default function App() {
                 {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng.'}
                 {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
                 {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
-                {currentTab === 'subscriber-status' && 'Đối soát trực tiếp trạng thái cập nhật, người phụ trách và kênh ghi nhận.'}
-                {currentTab === 'import-data' && 'Đồng bộ danh sách khách hàng mục tiêu và thuê bao chuẩn hóa, lọc trùng lớp thông minh.'}
               </p>
             </div>
 
@@ -1572,115 +1393,6 @@ export default function App() {
                 onSyncLocalToCloud={handleSyncLocalToCloud}
               />
             )}
-
-            {currentTab === 'subscriber-status' && (
-              <SubscriberStatusLookupModule
-                targetSubscribers={targetSubscribers}
-                normalizedSubscribers={normalizedSubscribers}
-              />
-            )}
-
-             {currentTab === 'import-data' && (currentUser.role === 'Admin' || currentUser.canImportData) && (
-               <SubscriberDataImportModule
-                 targetSubscribers={targetSubscribers}
-                 normalizedSubscribers={normalizedSubscribers}
-                 onImportTargets={async (newTargets) => {
-                   setTargetSubscribers((prev) => [...prev, ...newTargets]);
-                   // Sync to Cloudflare D1 immediately
-                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
-                     const mappedItems = newTargets.map(t => ({
-                       So_thue_bao: t.phoneNumber,
-                       Tap_thue_bao: t.segment
-                     }));
-                     let cleanUrl = cloudflareConfig.workerUrl.trim();
-                     if (cleanUrl.endsWith('/')) {
-                       cleanUrl = cleanUrl.slice(0, -1);
-                     }
-                     try {
-                       const res = await fetch(`${cleanUrl}/api/target-subscribers`, {
-                         method: 'POST',
-                         headers: {
-                           'Content-Type': 'application/json',
-                           'x-api-secret': cloudflareConfig.apiSecret
-                         },
-                         body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
-                       });
-                       if (!res.ok) {
-                         console.warn('Lỗi đồng bộ mẻ dữ liệu targets:', res.statusText);
-                       }
-                     } catch (err) {
-                       console.error('Lỗi sync targets: ', err);
-                     }
-                   }
-                 }}
-                 onImportNormalized={async (newNormalized) => {
-                   setNormalizedSubscribers((prev) => [...prev, ...newNormalized]);
-                   // Sync to Cloudflare D1 immediately
-                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
-                     const mappedItems = newNormalized.map(n => ({
-                       So_thue_bao: n.phoneNumber,
-                       User_capnhat: n.updatedByUser,
-                       Ma_hrm_CN: n.hrmCode,
-                       Kenh_CN: n.channel,
-                       Ngay_CN: n.updatedAt
-                     }));
-                     let cleanUrl = cloudflareConfig.workerUrl.trim();
-                     if (cleanUrl.endsWith('/')) {
-                       cleanUrl = cleanUrl.slice(0, -1);
-                     }
-                     try {
-                       const res = await fetch(`${cleanUrl}/api/normalized-subscribers`, {
-                         method: 'POST',
-                         headers: {
-                           'Content-Type': 'application/json',
-                           'x-api-secret': cloudflareConfig.apiSecret
-                         },
-                         body: JSON.stringify({ action: 'create_bulk', items: mappedItems })
-                       });
-                       if (!res.ok) {
-                         console.warn('Lỗi đồng bộ mẻ dữ liệu normalized:', res.statusText);
-                       }
-                     } catch (err) {
-                       console.error('Lỗi sync normalized: ', err);
-                     }
-                   }
-                 }}
-                 onClearTargets={() => {
-                   setTargetSubscribers([]);
-                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
-                     let cleanUrl = cloudflareConfig.workerUrl.trim();
-                     if (cleanUrl.endsWith('/')) {
-                       cleanUrl = cleanUrl.slice(0, -1);
-                     }
-                     fetch(`${cleanUrl}/api/target-subscribers`, {
-                       method: 'POST',
-                       headers: {
-                         'Content-Type': 'application/json',
-                         'x-api-secret': cloudflareConfig.apiSecret
-                       },
-                       body: JSON.stringify({ action: 'clear' })
-                     }).catch(err => console.error('Lỗi clear targets: ', err));
-                   }
-                 }}
-                 onClearNormalized={() => {
-                   setNormalizedSubscribers([]);
-                   if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
-                     let cleanUrl = cloudflareConfig.workerUrl.trim();
-                     if (cleanUrl.endsWith('/')) {
-                       cleanUrl = cleanUrl.slice(0, -1);
-                     }
-                     fetch(`${cleanUrl}/api/normalized-subscribers`, {
-                       method: 'POST',
-                       headers: {
-                         'Content-Type': 'application/json',
-                         'x-api-secret': cloudflareConfig.apiSecret
-                       },
-                       body: JSON.stringify({ action: 'clear' })
-                     }).catch(err => console.error('Lỗi clear normalized: ', err));
-                   }
-                 }}
-               />
-             )}
           </div>
         </main>
       </div>
