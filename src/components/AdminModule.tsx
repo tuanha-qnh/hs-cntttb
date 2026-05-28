@@ -258,6 +258,54 @@ export default function AdminModule({
     unitId: 'UN_ROOT'
   });
 
+  const [userSearchText, setUserSearchText] = useState('');
+  const [userUnitFilter, setUserUnitFilter] = useState('');
+
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserFullName, setEditUserFullName] = useState('');
+  const [editUserUnitId, setEditUserUnitId] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'Admin' | 'User'>('User');
+  const [editUserPassword, setEditUserPassword] = useState('');
+
+  const handleStartEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserFullName(user.fullName);
+    setEditUserUnitId(user.unitId);
+    setEditUserRole(user.role);
+    setEditUserPassword('');
+  };
+
+  const handleSaveEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editUserFullName.trim()) {
+      alert('Vui lòng nhập Họ và tên nhân viên.');
+      return;
+    }
+
+    const updatedUser: User = {
+      ...editingUser,
+      fullName: editUserFullName.trim(),
+      unitId: editUserUnitId,
+      role: editUserRole,
+    };
+
+    if (editUserPassword.trim()) {
+      updatedUser.password = editUserPassword.trim();
+      updatedUser.isFirstLogin = true;
+    }
+
+    onUsersChange(users.map(u => u.id === editingUser.id ? updatedUser : u));
+
+    // Sync to Cloudflare D1
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      syncUserToCloud('update', updatedUser);
+    }
+
+    alert('Cập nhật thông tin tài khoản thành công!');
+    setEditingUser(null);
+  };
+
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     const { username, fullName, role, unitId } = adminUserForm;
@@ -707,56 +755,109 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                 Danh mục nhân sự khai thác cổng nghiệp vụ
               </h3>
 
-              <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white overflow-hidden shadow-xs">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 text-slate-500 text-[10px] font-bold uppercase font-sans border-b border-slate-200/80 tracking-wider">
-                      <th className="px-4 py-3">Tài khoản</th>
-                      <th className="px-4 py-3">Họ và tên</th>
-                      <th className="px-4 py-3">Thuộc Chi nhánh</th>
-                      <th className="px-4 py-3">Phân Quyền</th>
-                      <th className="px-4 py-3 text-center">Bộ khóa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs font-sans">
-                    {users.map(u => {
-                      const associatedUnit = units.find(item => item.id === u.unitId);
-                      return (
-                        <tr key={u.id} className="hover:bg-slate-100/30 transition-colors text-slate-700 even:bg-slate-50/20">
-                          <td className="px-4 py-3 text-[#005BAA] font-bold font-mono text-xs">{u.username}</td>
-                          <td className="px-4 py-3 font-bold text-slate-850">{u.fullName}</td>
-                          <td className="px-4 py-3 text-slate-500 font-medium">{associatedUnit ? associatedUnit.name : 'Chưa phân bổ'}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] border tracking-wider ${
-                              u.role === 'Admin' ? 'bg-red-50 text-red-650 border-red-100' : 'bg-green-50 text-green-650 border-green-100'
-                            }`}>
-                              {u.role === 'Admin' ? 'ADMIN' : 'GDV (USER)'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => handleResetPassword(u.id)}
-                                className="p-1 px-1.5 hover:bg-slate-100 border border-transparent hover:border-slate-205 text-orange-600 rounded-md transition-all cursor-pointer"
-                                title="Khôi phục Password mặc định (Vnpt@2026)"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(u.id)}
-                                className="p-1 px-1.5 hover:bg-red-50 border border-transparent hover:border-red-100 text-red-600 rounded-md transition-all cursor-pointer"
-                                title="Xóa tài khoản"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              {/* Công cụ Tìm kiếm và Bộ lọc Đơn vị */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 font-sans">Tìm kiếm tài khoản / họ tên</label>
+                  <input
+                    type="text"
+                    placeholder="Nhập tên hoặc username..."
+                    value={userSearchText}
+                    onChange={(e) => setUserSearchText(e.target.value)}
+                    className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 font-sans">Lọc theo Đơn vị / Phòng ban</label>
+                  <select
+                    value={userUnitFilter}
+                    onChange={(e) => setUserUnitFilter(e.target.value)}
+                    className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                  >
+                    <option value="">-- Tất cả phòng ban --</option>
+                    {units.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {(() => {
+                const filteredUsers = users.filter(u => {
+                  const matchSearch = u.username.toLowerCase().includes(userSearchText.toLowerCase()) || 
+                                      u.fullName.toLowerCase().includes(userSearchText.toLowerCase());
+                  const matchUnit = userUnitFilter ? u.unitId === userUnitFilter : true;
+                  return matchSearch && matchUnit;
+                });
+
+                return (
+                  <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white overflow-hidden shadow-xs">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 text-slate-500 text-[10px] font-bold uppercase font-sans border-b border-slate-200/80 tracking-wider">
+                          <th className="px-4 py-3">Tài khoản</th>
+                          <th className="px-4 py-3">Họ và tên</th>
+                          <th className="px-4 py-3">Thuộc Chi nhánh</th>
+                          <th className="px-4 py-3">Phân Quyền</th>
+                          <th className="px-4 py-3 text-center">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                        {filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-slate-400 font-sans">
+                              Không tìm thấy người dùng nào khớp với bộ lọc.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map(u => {
+                            const associatedUnit = units.find(item => item.id === u.unitId);
+                            return (
+                              <tr key={u.id} className="hover:bg-slate-100/30 transition-colors text-slate-700 even:bg-slate-50/20">
+                                <td className="px-4 py-3 text-[#005BAA] font-bold font-mono text-xs">{u.username}</td>
+                                <td className="px-4 py-3 font-bold text-slate-850">{u.fullName}</td>
+                                <td className="px-4 py-3 text-slate-500 font-medium">{associatedUnit ? associatedUnit.name : 'Chưa phân bổ'}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] border tracking-wider ${
+                                    u.role === 'Admin' ? 'bg-red-50 text-red-650 border-red-100' : 'bg-green-50 text-green-650 border-green-100'
+                                  }`}>
+                                    {u.role === 'Admin' ? 'ADMIN' : 'GDV (USER)'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleStartEditUser(u)}
+                                      className="p-1 px-1.5 hover:bg-slate-100 border border-transparent hover:border-slate-200 text-blue-600 rounded-md transition-all cursor-pointer"
+                                      title="Chỉnh sửa thông tin tài khoản"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleResetPassword(u.id)}
+                                      className="p-1 px-1.5 hover:bg-slate-100 border border-transparent hover:border-slate-200 text-orange-600 rounded-md transition-all cursor-pointer"
+                                      title="Khôi phục Password mặc định (Vnpt@2026)"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteUser(u.id)}
+                                      className="p-1 px-1.5 hover:bg-red-50 border border-transparent hover:border-red-100 text-red-600 rounded-md transition-all cursor-pointer"
+                                      title="Xóa tài khoản"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -1025,6 +1126,103 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
           </div>
         )}
       </div>
+
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-50 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800 uppercase font-sans flex items-center gap-1.5">
+                <Edit2 className="w-4 h-4 text-[#005BAA]" />
+                Hiệu chỉnh tài khoản
+              </h3>
+              <button 
+                onClick={() => setEditingUser(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveEditUser} className="p-5 space-y-4 text-xs">
+              <div className="space-y-1 text-left">
+                <span className="text-[11px] font-semibold text-slate-500 font-sans">Tên tài khoản (Không thể sửa)</span>
+                <input
+                  disabled
+                  type="text"
+                  value={editingUser.username}
+                  className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg font-mono outline-none"
+                />
+              </div>
+
+              <div className="space-y-1 text-left">
+                <span className="text-[11px] font-semibold text-slate-500 font-sans">Họ và tên nhân viên *</span>
+                <input
+                  required
+                  type="text"
+                  placeholder="Họ và tên"
+                  value={editUserFullName}
+                  onChange={(e) => setEditUserFullName(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                />
+              </div>
+
+              <div className="space-y-1 text-left">
+                <span className="text-[11px] font-semibold text-slate-500 font-sans">Thuộc đơn vị / Phòng ban</span>
+                <select
+                  value={editUserUnitId}
+                  onChange={(e) => setEditUserUnitId(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                >
+                  {units.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1 text-left">
+                <span className="text-[11px] font-semibold text-slate-500 font-sans">Vai trò phân cấp</span>
+                <select
+                  value={editUserRole}
+                  onChange={(e) => setEditUserRole(e.target.value as 'Admin' | 'User')}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                >
+                  <option value="User">Giao dịch viên (User)</option>
+                  <option value="Admin">Quản trị viên (Admin)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1 border-t pt-3 mt-3 text-left">
+                <span className="text-[11px] font-semibold text-slate-500 font-sans block">Đặt lại mật khẩu mới (Tùy chọn)</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Nhập tối thiểu 6 ký tự để đổi, hoặc bỏ trống"
+                  value={editUserPassword}
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Nếu đặt lại, thành viên này sẽ được yêu cầu đổi mật khẩu mới trong lần đăng nhập tới.</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t text-xs">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#005BAA] hover:bg-blue-700 text-white font-bold rounded-lg cursor-pointer"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
