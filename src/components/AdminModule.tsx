@@ -255,7 +255,8 @@ export default function AdminModule({
     username: '',
     fullName: '',
     role: 'User' as 'Admin' | 'User',
-    unitId: 'UN_ROOT'
+    unitId: 'UN_ROOT',
+    canImportData: false
   });
 
   const [userSearchText, setUserSearchText] = useState('');
@@ -266,6 +267,7 @@ export default function AdminModule({
   const [editUserUnitId, setEditUserUnitId] = useState('');
   const [editUserRole, setEditUserRole] = useState<'Admin' | 'User'>('User');
   const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserCanImport, setEditUserCanImport] = useState(false);
 
   const handleStartEditUser = (user: User) => {
     setEditingUser(user);
@@ -273,6 +275,7 @@ export default function AdminModule({
     setEditUserUnitId(user.unitId);
     setEditUserRole(user.role);
     setEditUserPassword('');
+    setEditUserCanImport(!!user.canImportData);
   };
 
   const handleSaveEditUser = (e: React.FormEvent) => {
@@ -288,6 +291,7 @@ export default function AdminModule({
       fullName: editUserFullName.trim(),
       unitId: editUserUnitId,
       role: editUserRole,
+      canImportData: editUserCanImport,
     };
 
     if (editUserPassword.trim()) {
@@ -308,7 +312,7 @@ export default function AdminModule({
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    const { username, fullName, role, unitId } = adminUserForm;
+    const { username, fullName, role, unitId, canImportData } = adminUserForm;
     if (!username.trim() || !fullName.trim()) {
       alert('Vui lòng điền đủ Username và Họ tên.');
       return;
@@ -328,7 +332,8 @@ export default function AdminModule({
       unitId,
       isFirstLogin: true, // Requires password change
       status: 'active',
-      password: 'Vnpt@2026'
+      password: 'Vnpt@2026',
+      canImportData
     };
 
     onUsersChange([...users, newUser]);
@@ -345,7 +350,8 @@ export default function AdminModule({
       username: '',
       fullName: '',
       role: 'User',
-      unitId: 'UN_ROOT'
+      unitId: 'UN_ROOT',
+      canImportData: false
     });
   };
 
@@ -739,6 +745,19 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                   </select>
                 </div>
 
+                <div className="flex items-center gap-2 py-1 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
+                  <input
+                    type="checkbox"
+                    id="canImportData"
+                    checked={adminUserForm.canImportData}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, canImportData: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-[#005BAA] focus:ring-[#005BAA] cursor-pointer"
+                  />
+                  <label htmlFor="canImportData" className="text-[11px] font-semibold text-slate-700 cursor-pointer font-sans select-none">
+                    Quyền khai thác module upload dữ liệu
+                  </label>
+                </div>
+
                 <button
                   type="submit"
                   className="w-full py-2 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
@@ -818,11 +837,18 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                                 <td className="px-4 py-3 font-bold text-slate-850">{u.fullName}</td>
                                 <td className="px-4 py-3 text-slate-500 font-medium">{associatedUnit ? associatedUnit.name : 'Chưa phân bổ'}</td>
                                 <td className="px-4 py-3">
-                                  <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] border tracking-wider ${
-                                    u.role === 'Admin' ? 'bg-red-50 text-red-650 border-red-100' : 'bg-green-50 text-green-650 border-green-100'
-                                  }`}>
-                                    {u.role === 'Admin' ? 'ADMIN' : 'GDV (USER)'}
-                                  </span>
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] border tracking-wider ${
+                                      u.role === 'Admin' ? 'bg-red-50 text-red-650 border-red-100' : 'bg-green-50 text-green-650 border-green-100'
+                                    }`}>
+                                      {u.role === 'Admin' ? 'ADMIN' : 'GDV (USER)'}
+                                    </span>
+                                    {(u.canImportData || u.role === 'Admin') && (
+                                      <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-indigo-50 text-indigo-650 border border-indigo-100 uppercase tracking-tight">
+                                        + Quyền Upload
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <div className="flex items-center justify-center gap-1.5">
@@ -1189,6 +1215,19 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                   <option value="User">Giao dịch viên (User)</option>
                   <option value="Admin">Quản trị viên (Admin)</option>
                 </select>
+              </div>
+
+              <div className="flex items-center gap-2 py-1.5 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
+                <input
+                  type="checkbox"
+                  id="editUserCanImport"
+                  checked={editUserCanImport}
+                  onChange={(e) => setEditUserCanImport(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-[#005BAA] focus:ring-[#005BAA] cursor-pointer"
+                />
+                <label htmlFor="editUserCanImport" className="text-[11px] font-semibold text-slate-750 cursor-pointer font-sans select-none">
+                  Quyền khai thác module upload dữ liệu
+                </label>
               </div>
 
               <div className="space-y-1 border-t pt-3 mt-3 text-left">

@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, Search, BarChart3, Cloud, LogOut, Key, CheckCircle, 
-  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save 
+  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save, Upload
 } from 'lucide-react';
 
 import { Unit, User, SubscriberRecord, CloudflareConfig } from './types';
@@ -15,6 +15,7 @@ import SubscriberLookupModule from './components/SubscriberLookupModule';
 import DashboardStatsModule from './components/DashboardStatsModule';
 import AdminModule from './components/AdminModule';
 import InteractiveGuide from './components/InteractiveGuide';
+import DataImportModule from './components/DataImportModule';
 
 // ----------------------------------------------------------------------
 // INITIAL MOCK DATABASES FOR TESTING & PRESENTATION out of the box
@@ -206,7 +207,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin' | 'import_data'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Automatically parse setup query parameters on load for device setup
@@ -912,28 +913,27 @@ export default function App() {
   if (!currentUser) {
     if (passwordChangeRequiredUser) {
       return (
-        <div className="min-h-screen bg-slate-900 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 backdrop-blur-md relative">
+        <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200/80 shadow-2xl rounded-2xl overflow-hidden p-6 space-y-6 relative">
             {/* Design accents */}
-            <div className="absolute top-0 left-0 w-24 h-[1px] bg-gradient-to-r from-cyan-500 to-transparent"></div>
-            <div className="absolute top-0 left-0 w-[1px] h-24 bg-gradient-to-b from-cyan-500 to-transparent"></div>
+            <div className="absolute top-0 left-0 w-24 h-[1.5px] bg-[#005BAA]"></div>
             
             <div className="text-center space-y-2">
-              <div className="bg-[#005BAA]/20 text-cyan-400 p-3 rounded-xl border border-cyan-500/20 inline-flex">
+              <div className="bg-[#005BAA]/10 text-[#005BAA] p-3 rounded-xl border border-blue-100 inline-flex">
                 <Key className="w-6 h-6 animate-pulse" />
               </div>
-              <h2 className="text-base font-bold text-white font-sans uppercase tracking-wider">
+              <h2 className="text-base font-bold text-slate-800 font-sans uppercase tracking-wider">
                 Yêu Cầu Thay Đổi Mật Khẩu
               </h2>
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
-                Xin chào <strong className="text-cyan-400">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
+              <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                Xin chào <strong className="text-[#005BAA]">{passwordChangeRequiredUser.fullName}</strong>. Vì lý do an toàn bảo mật, bạn bắt buộc phải tạo mật khẩu riêng trong lần đầu đăng nhập.
               </p>
             </div>
 
             <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
                   Mật khẩu bảo mật mới *
                 </label>
                 <input
@@ -943,13 +943,13 @@ export default function App() {
                   placeholder="Nhập tối thiểu 6 ký tự"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-600 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#005BAA]" />
                   Xác nhận lại mật khẩu mới *
                 </label>
                 <input
@@ -959,19 +959,19 @@ export default function App() {
                   placeholder="Điền lại khớp hoàn toàn"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               {passwordError && (
-                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/30 border border-red-900/40 py-2 rounded-lg">
+                <p className="text-[11px] text-red-600 font-sans font-medium text-center bg-red-50 border border-red-200 py-2 rounded-lg">
                   {passwordError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Cập nhật mật khẩu & Vào hệ thống
               </button>
@@ -982,21 +982,20 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-900/95 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden relative backdrop-blur-sm">
-          {/* Tech lines */}
-          <div className="absolute top-0 right-0 w-32 h-[1px] bg-gradient-to-l from-[#005BAA] to-transparent"></div>
-          <div className="absolute top-0 right-0 w-[1px] h-32 bg-gradient-to-b from-[#005BAA] to-transparent"></div>
+      <div className="min-h-screen bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white border border-slate-200/90 shadow-2xl rounded-2xl overflow-hidden relative">
+          {/* Accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#005BAA]"></div>
           
           {/* Header VNPT Cover */}
-          <div className="bg-gradient-to-b from-[#005BAA]/10 to-[#005BAA]/3 border-b border-slate-800 p-6 text-center space-y-2 relative">
-            <div className="absolute top-4 right-4 bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800 text-[8px] font-mono tracking-widest uppercase">
+          <div className="bg-slate-50/50 border-b border-slate-100 p-6 text-center space-y-2 relative">
+            <div className="absolute top-4 right-4 bg-blue-50 text-[#005BAA] px-2 py-0.5 rounded border border-blue-100 text-[8px] font-mono tracking-widest uppercase font-bold">
               VNPT Portal
             </div>
-            <div className="bg-slate-950 p-2.5 rounded-xl inline-flex border border-slate-800 mb-1 shadow-inner">
-              <Building2 className="w-8 h-8 text-cyan-400" />
+            <div className="bg-[#005BAA]/5 p-2 rounded-xl inline-flex border border-blue-50 mb-1">
+              <Building2 className="w-8 h-8 text-[#005BAA]" />
             </div>
-            <h1 className="text-sm font-extrabold uppercase tracking-widest text-slate-100 font-sans">
+            <h1 className="text-sm font-extrabold uppercase tracking-widest text-[#005BAA] font-sans">
               Hệ thống lưu trữ giấy tờ
             </h1>
             <p className="text-[10px] text-slate-400 tracking-wider font-sans leading-relaxed">
@@ -1008,8 +1007,8 @@ export default function App() {
           <div className="p-6 space-y-5">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-655 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <UserIcon className="w-3.5 h-3.5 text-[#005BAA]" />
                   Tài khoản Giao dịch viên
                 </label>
                 <input
@@ -1019,13 +1018,13 @@ export default function App() {
                   placeholder="Ví dụ: tuanha / admin"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-semibold text-slate-655 font-sans flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                  <Lock className="w-3.5 h-3.5 text-[#005BAA]" />
                   Mật khẩu hệ thống
                 </label>
                 <input
@@ -1035,26 +1034,26 @@ export default function App() {
                   placeholder="Mật khẩu riêng"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500/10 focus:border-[#005BAA] outline-none transition-all font-mono"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                 />
               </div>
 
               {loginError && (
-                <p className="text-[11px] text-red-400 font-sans font-medium text-center bg-red-950/20 border border-red-900/30 py-2 rounded-lg">
+                <p className="text-[11px] text-red-655 font-sans font-medium text-center bg-red-50 border border-red-150 py-2 rounded-lg">
                   {loginError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                className="w-full py-2.5 bg-[#005BAA] hover:bg-blue-650 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
               >
                 Đăng nhập hệ thống
               </button>
             </form>
 
             {/* Quick Cloud Connection Setup for Remote Devices / Browsers to pull database */}
-            <div className="border-t border-slate-800/80 pt-4 space-y-3">
+            <div className="border-t border-slate-100 pt-4 space-y-3">
               <div className="flex justify-between items-center text-[10px] text-slate-500 font-sans">
                 <span>Hệ thống nội vụ VNPT Quảng Ninh</span>
                 <button
@@ -1069,7 +1068,7 @@ export default function App() {
                     if (envUrl) setLoginWorkerUrl(envUrl);
                     if (envSecret) setLoginApiSecret(envSecret);
                   }}
-                  className="text-cyan-400 hover:text-cyan-300 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
+                  className="text-[#005BAA] hover:text-blue-700 transition-colors font-bold cursor-pointer flex items-center gap-1 uppercase tracking-wider text-[9px]"
                 >
                   <Cloud className="w-3.5 h-3.5" style={{ display: 'inline' }} />
                   {showLoginCloudConfig ? 'Ẩn liên kết Cloud' : 'Đồng bộ đám mây'}
@@ -1077,14 +1076,14 @@ export default function App() {
               </div>
 
               {showLoginCloudConfig && (
-                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <form onSubmit={handleLoginCloudSync} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="text-[10px] text-[#005BAA] font-bold uppercase tracking-wider flex items-center gap-1">
                     <Cloud className="w-3.5 h-3.5" />
                     KẾT NỐI TRỰC TUYẾN CLOUDFLARE
                   </div>
 
                   {((import.meta as any).env?.VITE_CLOUDFLARE_WORKER_URL && (import.meta as any).env?.VITE_CLOUDFLARE_API_SECRET) ? (
-                    <div className="text-[10px] leading-relaxed text-emerald-400 bg-emerald-950/20 border border-emerald-990/40 p-2.5 rounded-lg font-sans">
+                    <div className="text-[10px] leading-relaxed text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg font-sans">
                       ✓ Đã tích hợp cấu hình đám mây tự động từ máy chủ sản xuất (Vercel Node Keys). Các trường nhập mật mật & liên kết riêng tư đã được ẩn an toàn để bảo mật.
                     </div>
                   ) : (
@@ -1094,7 +1093,7 @@ export default function App() {
                       </p>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
                           Worker Base URL *
                         </label>
                         <input
@@ -1103,12 +1102,12 @@ export default function App() {
                           placeholder="https://...workers.dev"
                           value={loginWorkerUrl}
                           onChange={(e) => setLoginWorkerUrl(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-sans"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-sans"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-semibold text-slate-400 font-mono uppercase tracking-wider block">
+                        <label className="text-[9px] font-semibold text-slate-500 font-mono uppercase tracking-wider block">
                           API Authorization Secret *
                         </label>
                         <input
@@ -1117,20 +1116,20 @@ export default function App() {
                           placeholder="Nhập khóa API Secret"
                           value={loginApiSecret}
                           onChange={(e) => setLoginApiSecret(e.target.value)}
-                          className="w-full text-[11px] px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-slate-100 rounded focus:ring-1 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all font-mono"
+                          className="w-full text-[11px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-800 rounded focus:ring-1 focus:ring-blue-100 focus:border-[#005BAA] outline-none transition-all font-mono"
                         />
                       </div>
                     </>
                   )}
 
                   {loginCloudError && (
-                    <div className="text-[10px] text-rose-400 font-mono leading-relaxed bg-rose-950/20 p-2 rounded border border-rose-900/40">
+                    <div className="text-[10px] text-rose-600 font-mono leading-relaxed bg-rose-50 p-2 rounded border border-rose-150">
                       ⚠️ {loginCloudError}
                     </div>
                   )}
 
                   {loginCloudStatus === 'success' && (
-                    <div className="text-[10px] text-emerald-400 font-sans leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/40 font-medium">
+                    <div className="text-[10px] text-emerald-700 font-sans leading-relaxed bg-emerald-50 p-2 rounded border border-emerald-150 font-bold">
                       ✓ Đọc dữ liệu đám mây thành công! Đã cập nhật {users.length} tài khoản giao dịch viên.
                     </div>
                   )}
@@ -1288,26 +1287,40 @@ export default function App() {
                 </button>
               )}
 
-              {/* Guard view for administrator credentials */}
-              {currentUser.role === 'Admin' && (
+              {/* Guard view for administrator or users with canImportData permissions */}
+              {(currentUser.role === 'Admin' || currentUser.canImportData) && (
                 <div className="pt-5 border-t border-slate-800/80 mt-4 space-y-1">
                   <span className={`text-[9px] uppercase font-bold text-slate-500 px-3.5 block tracking-widest ${
                     sidebarOpen ? 'block' : 'hidden md:hidden'
                   }`}>
-                    Hệ Thống Admin
+                    Nghiệp Vụ Dữ Liệu
                   </span>
-                  
+
                   <button
-                    onClick={() => setCurrentTab('admin')}
+                    onClick={() => setCurrentTab('import_data')}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
-                      currentTab === 'admin'
+                      currentTab === 'import_data'
                         ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
                         : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
                     }`}
                   >
-                    <Users className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                    <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Quản trị Hệ thống</span>
+                    <Upload className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'import_data' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                    <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Upload dữ liệu CSDL</span>
                   </button>
+
+                  {currentUser.role === 'Admin' && (
+                    <button
+                      onClick={() => setCurrentTab('admin')}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                        currentTab === 'admin'
+                          ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Users className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin' ? 'text-white' : 'text-slate-500 group-hover:text-slate-350'}`} />
+                      <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Quản trị Hệ thống</span>
+                    </button>
+                  )}
                 </div>
               )}
             </nav>
@@ -1333,6 +1346,7 @@ export default function App() {
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
                 {currentTab === 'guide' && 'HƯỚNG DẪN CẤU HÌNH CLOUDFLARE TOÀN DIỆN'}
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
+                {currentTab === 'import_data' && 'UPLOAD & IMPORT DỮ LIỆU CSDL D1'}
               </h2>
               <p className="text-xs text-slate-500 font-sans mt-0.5">
                 {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
@@ -1340,6 +1354,7 @@ export default function App() {
                 {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng.'}
                 {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
                 {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
+                {currentTab === 'import_data' && 'Đồng bộ tải lên danh sách thuê bao mục tiêu cần hoàn thiện và kết quả cập nhật.'}
               </p>
             </div>
 
@@ -1375,6 +1390,10 @@ export default function App() {
 
             {currentTab === 'lookup' && (
               <SubscriberLookupModule records={subscribers} />
+            )}
+
+            {currentTab === 'import_data' && (
+              <DataImportModule currentUser={currentUser} />
             )}
 
             {currentTab === 'guide' && currentUser?.username === 'admin' && (

@@ -19,6 +19,7 @@ export interface User {
   isFirstLogin: boolean;
   status: 'active' | 'inactive';
   password?: string;
+  canImportData?: boolean;
 }
 
 export interface SubscriberRecord {

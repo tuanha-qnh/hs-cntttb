@@ -13,10 +13,40 @@ interface Props {
 }
 
 export default function SubscriberLookupModule({ records }: Props) {
+  const [activeSubTab, setActiveSubTab] = useState<'documents' | 'database'>('documents');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<SubscriberRecord | null>(null);
   const itemsPerPage = 6;
+
+  // States for DB database status lookup
+  const [dbSearchPhone, setDbSearchPhone] = useState('');
+  const [dbLookupResult, setDbLookupResult] = useState<any | null>(null);
+  const [dbLookupLoading, setDbLookupLoading] = useState(false);
+  const [dbLookupError, setDbLookupError] = useState<string | null>(null);
+
+  const handleDbLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanedPhone = dbSearchPhone.trim();
+    if (!cleanedPhone) return;
+
+    setDbLookupLoading(true);
+    setDbLookupError(null);
+    setDbLookupResult(null);
+
+    try {
+      const resp = await fetch(`/api/subscriber-status/lookup?phone=${encodeURIComponent(cleanedPhone)}`);
+      if (!resp.ok) {
+        throw new Error('Không thể kết nối đến máy chủ CSDL. Vui lòng kiểm tra lại cấu hình.');
+      }
+      const data = await resp.json();
+      setDbLookupResult(data);
+    } catch (err: any) {
+      setDbLookupError(err.message || 'Lỗi hệ thống bất ngờ.');
+    } finally {
+      setDbLookupLoading(false);
+    }
+  };
 
   // Client-side smart filtering
   const filteredRecords = records.filter((r) => {
@@ -58,127 +88,269 @@ export default function SubscriberLookupModule({ records }: Props) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Search Header Banner Bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="w-full md:max-w-md relative">
-          <input
-            type="text"
-            placeholder="Tìm Số thuê bao, Mã CCCD, Tên chủ thuê..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200/90 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] font-sans transition-all"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
-        </div>
-        
-        <div className="text-[11px] text-slate-500 font-sans font-medium">
-          Đang hiển thị <span className="font-mono font-bold text-[#005BAA] bg-[#005BAA]/5 px-2 py-0.5 rounded border border-blue-100">{filteredRecords.length}</span> trên tổng số <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-250">{records.length}</span> hồ sơ lưu kho.
-        </div>
+      {/* Sub tabs selector */}
+      <div className="flex border-b border-slate-200 bg-white p-2 rounded-xl shadow-2xs gap-1">
+        <button
+          onClick={() => setActiveSubTab('documents')}
+          className={`flex-1 sm:flex-none px-4 py-2.5 text-xs font-bold font-sans rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeSubTab === 'documents'
+              ? 'bg-[#005BAA] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          📁 Tra cứu Hồ sơ Bản scan
+        </button>
+        <button
+          onClick={() => setActiveSubTab('database')}
+          className={`flex-1 sm:flex-none px-4 py-2.5 text-xs font-bold font-sans rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeSubTab === 'database'
+              ? 'bg-[#005BAA] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          ⚡ Tra cứu Trạng thái CSDL (D1)
+        </button>
       </div>
 
-      {/* Main Grid View */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-200/80 text-slate-500 text-[10px] font-bold uppercase font-sans tracking-wider">
-                <th className="px-6 py-3.5 w-16">STT</th>
-                <th className="px-6 py-3.5">Số thuê bao VinaPhone</th>
-                <th className="px-6 py-3.5">Họ tên chủ thuê bao</th>
-                <th className="px-6 py-3.5">Số Giấy tờ CCCD</th>
-                <th className="px-6 py-3.5">Đơn vị tiếp nhận</th>
-                <th className="px-6 py-3.5">Ngày đồng bộ</th>
-                <th className="px-6 py-3.5 text-center">Tùy chọn</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedData.length > 0 ? (
-                paginatedData.map((record, index) => (
-                  <tr key={record.id} className="hover:bg-[#005BAA]/2 transition-colors text-slate-700 text-xs font-sans even:bg-slate-50/20">
-                    <td className="px-6 py-4 font-bold text-slate-400 font-mono text-[11px]">
-                      {String(startIndex + index + 1).padStart(2, '0')}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-[#005BAA] font-mono text-sm tracking-wide">
-                      {record.phoneNumber}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-800 font-sans tracking-tight">
-                      {record.fullName}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-slate-500 text-[11px]">
-                      {record.idNumber}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500 font-sans">
-                      <div className="flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-slate-450" />
-                        <span className="font-medium truncate max-w-[180px]">{record.unitName || 'VNPT Quảng Ninh'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-400 font-mono text-[11px]">
-                      {formatDate(record.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setSelectedRecord(record)}
-                        className="px-3 py-1.5 rounded-lg bg-[#005BAA]/5 text-[#005BAA] border border-blue-100 hover:bg-[#005BAA] hover:text-white hover:border-[#005BAA] transition-all text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Xem chi tiết
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="text-center py-16 text-slate-400 font-sans font-medium text-xs">
-                    Không tìm thấy dữ liệu hồ sơ thuê bao phù hợp với từ khóa tìm kiếm.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">
-              Trang <strong>{currentPage}</strong> / <strong>{totalPages}</strong>
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-                className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => handlePageChange(pageNum)}
-                  className={`px-2.5 py-1 rounded border cursor-pointer font-medium ${
-                    pageNum === currentPage
-                      ? 'bg-[#005BAA] text-white border-[#005BAA]'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              ))}
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
-                className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Sau
-              </button>
+      {activeSubTab === 'documents' && (
+        <div className="space-y-6">
+          {/* Search Header Banner Bar */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="w-full md:max-w-md relative">
+              <input
+                type="text"
+                placeholder="Tìm Số thuê bao, Mã CCCD, Tên chủ thuê..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200/90 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] font-sans transition-all"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
+            </div>
+            
+            <div className="text-[11px] text-slate-500 font-sans font-medium">
+              Đang hiển thị <span className="font-mono font-bold text-[#005BAA] bg-[#005BAA]/5 px-2 py-0.5 rounded border border-blue-100">{filteredRecords.length}</span> trên tổng số <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-250">{records.length}</span> hồ sơ lưu kho.
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Main Grid View */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-200/80 text-slate-500 text-[10px] font-bold uppercase font-sans tracking-wider">
+                    <th className="px-6 py-3.5 w-16">STT</th>
+                    <th className="px-6 py-3.5">Số thuê bao VinaPhone</th>
+                    <th className="px-6 py-3.5">Họ tên chủ thuê bao</th>
+                    <th className="px-6 py-3.5">Số Giấy tờ CCCD</th>
+                    <th className="px-6 py-3.5">Đơn vị tiếp nhận</th>
+                    <th className="px-6 py-3.5">Ngày đồng bộ</th>
+                    <th className="px-6 py-3.5 text-center">Tùy chọn</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((record, index) => (
+                      <tr key={record.id} className="hover:bg-[#005BAA]/2 transition-colors text-slate-700 text-xs font-sans even:bg-slate-50/20">
+                        <td className="px-6 py-4 font-bold text-slate-400 font-mono text-[11px]">
+                          {String(startIndex + index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="px-6 py-4 font-bold text-[#005BAA] font-mono text-sm tracking-wide">
+                          {record.phoneNumber}
+                        </td>
+                        <td className="px-6 py-4 font-bold text-slate-800 font-sans tracking-tight">
+                          {record.fullName}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-slate-500 text-[11px]">
+                          {record.idNumber}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 font-sans">
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-450" />
+                            <span className="font-medium truncate max-w-[180px]">{record.unitName || 'VNPT Quảng Ninh'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-400 font-mono text-[11px]">
+                          {formatDate(record.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => setSelectedRecord(record)}
+                            className="px-3 py-1.5 rounded-lg bg-[#005BAA]/5 text-[#005BAA] border border-blue-100 hover:bg-[#005BAA] hover:text-white hover:border-[#005BAA] transition-all text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Xem chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="text-center py-16 text-slate-400 font-sans font-medium text-xs">
+                        Không tìm thấy dữ liệu hồ sơ thuê bao phù hợp với từ khóa tìm kiếm.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Bar */}
+            {totalPages > 1 && (
+              <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">
+                  Trang <strong>{currentPage}</strong> / <strong>{totalPages}</strong>
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Trước
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-2.5 py-1 rounded border cursor-pointer font-medium ${
+                        pageNum === currentPage
+                          ? 'bg-[#005BAA] text-white border-[#005BAA]'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Sau
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'database' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+            <h3 className="text-xs font-bold text-slate-700 uppercase border-b pb-3 mb-4 font-sans flex items-center gap-1.5">
+              <Phone className="w-4 h-4 text-[#005BAA]" />
+              Tra cứu tiến trình & thông tin cập nhật trên hệ thống D1
+            </h3>
+            
+            <form onSubmit={handleDbLookup} className="flex gap-2 max-w-lg">
+              <input
+                required
+                type="text"
+                placeholder="Ví dụ: 0912345678"
+                value={dbSearchPhone}
+                onChange={(e) => setDbSearchPhone(e.target.value)}
+                className="w-full px-4 py-2 text-xs bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#005BAA] font-sans transition-all text-sm font-semibold tracking-wider outline-none"
+              />
+              <button
+                type="submit"
+                disabled={dbLookupLoading}
+                className="px-5 py-2.5 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-55 shrink-0"
+              >
+                <Search className="w-4 h-4" />
+                {dbLookupLoading ? 'Đang kiểm tra...' : 'Tra Cứu'}
+              </button>
+            </form>
+
+            <span className="text-[11px] text-slate-400 font-sans block mt-2">
+              Lưu ý: Hệ thống không tải sẵn toàn bộ dữ liệu. Khi bạn bấm nút tra cứu, hệ thống gửi yêu cầu trực tiếp về cơ sở dữ liệu và tự động thực hiện tiến trình đồng bộ <b>Tập thuê bao mục tiêu (DS_TB_MUCTIEU)</b> với <b>Kết quả cập nhật (KQ_CNTTTB)</b> ở thời gian thực.
+            </span>
+          </div>
+
+          {dbLookupError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-650 font-sans flex items-center gap-2">
+              <span className="font-bold">❌ Lỗi:</span> {dbLookupError}
+            </div>
+          )}
+
+          {dbLookupResult && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden animate-in speed-200 fade-in slide-in-from-top-3">
+              <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-mono font-bold text-[#005BAA] tracking-wider uppercase">Số thuê bao tra cứu: {dbLookupResult.So_thue_bao}</h4>
+                  <p className="text-[10px] text-slate-450 mt-0.5">Tập danh mục: {dbLookupResult.Tap_thue_bao || 'Đồng bộ phát sinh tự động'}</p>
+                </div>
+                {dbLookupResult.synchronized && (
+                  <span className="self-start sm:self-center px-2 py-0.5 bg-green-50 border border-green-200 text-green-700 font-bold text-[9px] rounded-lg uppercase tracking-tight flex items-center gap-1 active:scale-95 transition-all">
+                    ⚡ Đã tự động đồng bộ tables
+                  </span>
+                )}
+              </div>
+
+              {dbLookupResult.found ? (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700 font-sans">
+                    {/* Status Box */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Trạng thái cập nhật</span>
+                      <div className="flex items-center gap-2">
+                        {dbLookupResult.IsUpdated ? (
+                          <span className="px-2.5 py-1 text-[11px] font-bold leading-none bg-green-50 text-green-700 border border-green-200 rounded-lg flex items-center gap-1">
+                            ● ĐÃ HOÀN THÀNH CẬP NHẬT
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 text-[11px] font-bold leading-none bg-orange-50 text-orange-700 border border-orange-200 rounded-lg flex items-center gap-1">
+                            ● CHƯA CẬP NHẬT (CHỜ TIẾP NHẬN)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Channel */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Kênh cập nhật</span>
+                      <p className="text-xs font-bold text-slate-800">
+                        {dbLookupResult.Kenh_CN || 'N/A (Chưa tiếp nhận)'}
+                      </p>
+                    </div>
+
+                    {/* Updater User */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">User cập nhật</span>
+                      <p className="text-xs font-bold text-slate-800">
+                        {dbLookupResult.User_capnhat || 'N/A'}
+                      </p>
+                    </div>
+
+                    {/* HRM Code */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Mã HRM Code</span>
+                      <p className="text-xs font-bold font-mono text-indigo-700">
+                        {dbLookupResult.Ma_hrm_CN || 'N/A'}
+                      </p>
+                    </div>
+
+                    {/* Update Date */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5 sm:col-span-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Ngày ghi nhận kết quả cập nhật</span>
+                      <p className="text-xs font-mono font-bold text-slate-650">
+                        {dbLookupResult.Ngay_CN || 'N/A (Chưa ghi nhận)'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 font-sans">
+                  ❌ Số thuê bao không tồn tại trong danh sách mục tiêu hay kết quả cập nhật trong CSDL D1.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Drawer Overlay Modal viewing Document Image with complete information metadata */}
       {selectedRecord && (
