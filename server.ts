@@ -177,7 +177,8 @@ async function startServer() {
       }
 
       const database = getDatabase();
-      let updatedCount = 0;
+      // Reset/clear old database records to support complete overwrite mode
+      database.DS_TB_MUCTIEU = [];
       let insertedCount = 0;
 
       for (const item of recordsToUpload) {
@@ -186,24 +187,15 @@ async function startServer() {
 
         const cleanPhone = rawPhone;
 
-        const existingIndex = database.DS_TB_MUCTIEU.findIndex((u) => u.So_thue_bao.trim() === cleanPhone);
-
-        if (existingIndex !== -1) {
-          // Overwrite existing record
-          database.DS_TB_MUCTIEU[existingIndex].Tap_thue_bao = (item.Tap_thue_bao || "Mặc định").trim();
-          updatedCount++;
-        } else {
-          // Create new
-          database.DS_TB_MUCTIEU.push({
-            So_thue_bao: cleanPhone,
-            Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim()
-          });
-          insertedCount++;
-        }
+        database.DS_TB_MUCTIEU.push({
+          So_thue_bao: cleanPhone,
+          Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim()
+        });
+        insertedCount++;
       }
 
       saveDatabase(database);
-      return res.json({ success: true, updatedCount, insertedCount, total: database.DS_TB_MUCTIEU.length });
+      return res.json({ success: true, updatedCount: 0, insertedCount, total: database.DS_TB_MUCTIEU.length });
     } catch (err: any) {
       console.error("Error uploading DS_TB_MUCTIEU:", err);
       return res.status(500).json({ error: err.message || "Failed to upload target list" });
@@ -219,7 +211,8 @@ async function startServer() {
       }
 
       const database = getDatabase();
-      let updatedCount = 0;
+      // Reset/clear old database records to support complete overwrite mode
+      database.KQ_CNTTTB = [];
       let insertedCount = 0;
 
       for (const item of recordsToUpload) {
@@ -227,8 +220,6 @@ async function startServer() {
         if (!rawPhone) continue;
 
         const cleanPhone = rawPhone;
-
-        const existingIndex = database.KQ_CNTTTB.findIndex((u) => u.so_thue_bao.trim() === cleanPhone);
 
         const newRecord = {
           so_thue_bao: cleanPhone,
@@ -238,19 +229,12 @@ async function startServer() {
           Ngay_CN: String(item.Ngay_CN || "").trim(),
         };
 
-        if (existingIndex !== -1) {
-          // Overwrite existing record
-          database.KQ_CNTTTB[existingIndex] = newRecord;
-          updatedCount++;
-        } else {
-          // Create new
-          database.KQ_CNTTTB.push(newRecord);
-          insertedCount++;
-        }
+        database.KQ_CNTTTB.push(newRecord);
+        insertedCount++;
       }
 
       saveDatabase(database);
-      return res.json({ success: true, updatedCount, insertedCount, total: database.KQ_CNTTTB.length });
+      return res.json({ success: true, updatedCount: 0, insertedCount, total: database.KQ_CNTTTB.length });
     } catch (err: any) {
       console.error("Error uploading KQ_CNTTTB:", err);
       return res.status(500).json({ error: err.message || "Failed to upload updated list" });

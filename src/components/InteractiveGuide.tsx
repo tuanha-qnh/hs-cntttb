@@ -318,7 +318,7 @@ export default {
         });
       }
 
-      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu
+      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu (Chế độ ghi đè dữ liệu cũ)
       if (isSubMuctieuUploadPath && request.method === "POST") {
         const { records } = await request.json();
         if (!Array.isArray(records)) {
@@ -329,13 +329,16 @@ export default {
         }
 
         const statements = [];
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+
         for (const item of records) {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)"
             ).bind(sdt, tap)
           );
         }
@@ -344,12 +347,12 @@ export default {
           await env.DB.batch(statements);
         }
 
-        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+        return new Response(JSON.stringify({ success: true, total: records.length }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
-      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB
+      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB (Chế độ ghi đè dữ liệu cũ)
       if (isSubKetquaUploadPath && request.method === "POST") {
         const { records } = await request.json();
         if (!Array.isArray(records)) {
@@ -360,6 +363,9 @@ export default {
         }
 
         const statements = [];
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+
         for (const item of records) {
           const sdt = String(item.so_thue_bao || "").trim();
           if (!sdt) continue;
@@ -368,16 +374,9 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
-          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm ràng buộc khóa ngoại (Foreign Key)
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
-            ).bind(sdt)
-          );
-
-          statements.push(
-            env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
@@ -744,7 +743,7 @@ export default {
         });
       }
 
-      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu
+      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu (Chế độ ghi đè dữ liệu cũ)
       if (isSubMuctieuUploadPath && request.method === "POST") {
         const { records } = await request.json() as any;
         if (!Array.isArray(records)) {
@@ -755,13 +754,16 @@ export default {
         }
 
         const statements = [];
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+
         for (const item of records) {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)"
             ).bind(sdt, tap)
           );
         }
@@ -770,12 +772,12 @@ export default {
           await env.DB.batch(statements);
         }
 
-        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+        return new Response(JSON.stringify({ success: true, total: records.length }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
-      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB
+      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB (Chế độ ghi đè dữ liệu cũ)
       if (isSubKetquaUploadPath && request.method === "POST") {
         const { records } = await request.json() as any;
         if (!Array.isArray(records)) {
@@ -786,6 +788,9 @@ export default {
         }
 
         const statements = [];
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+
         for (const item of records) {
           const sdt = String(item.so_thue_bao || "").trim();
           if (!sdt) continue;
@@ -794,16 +799,9 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
-          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm ràng buộc khóa ngoại (Foreign Key)
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
-            ).bind(sdt)
-          );
-
-          statements.push(
-            env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
