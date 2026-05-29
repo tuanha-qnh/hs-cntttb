@@ -1048,6 +1048,60 @@ INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin,
           </p>
         </div>
 
+        {/* Warning block for Foreign Key constraints */}
+        <div className="bg-rose-50 border-b border-rose-200 px-4 py-3.5 text-xs text-rose-800 leading-relaxed font-sans">
+          <div className="flex items-center gap-2 font-bold text-rose-950 mb-1">
+            <span>🛠 CÁCH KHẮC PHỤC LỖI KHÓA NGOẠI (FOREIGN KEY CONSTRAINT FAILED)</span>
+          </div>
+          <p className="mb-2">
+            Nếu bạn gặp thông báo lỗi <strong className="text-rose-950">"D1_ERROR: FOREIGN KEY constraint failed"</strong> khi thực hiện Tải dữ liệu từ tệp Excel lên Cơ sở dữ liệu D1 Cloud, lý do là do cơ sở dữ liệu cũ của bạn có chứa các ràng buộc khóa ngoại cứng nhắc (Foreign Key constraints) không đồng bộ giữa bảng Mục Tiêu / Kết Quả / Nhân Sự.
+          </p>
+          <p className="mb-2.5">
+            Hãy sao chép và thực thi câu lệnh SQL bên dưới tại Cloudflare D1 Console để <strong>xóa bỏ các ràng buộc khóa ngoại cứng</strong> và khởi tạo lại cấu trúc lưu trữ chuẩn hóa, mềm dẻo cho phép đồng bộ tự do:
+          </p>
+          <button
+            onClick={() => copyToClipboard(`DROP TABLE IF EXISTS KQ_CNTTTB;
+CREATE TABLE KQ_CNTTTB (
+  so_thue_bao TEXT PRIMARY KEY,
+  User_capnhat TEXT,
+  Ma_hrm_CN TEXT,
+  Kenh_CN TEXT,
+  Ngay_CN TEXT
+);
+
+DROP TABLE IF EXISTS DS_TB_MUCTIEU;
+CREATE TABLE DS_TB_MUCTIEU (
+  So_thue_bao TEXT PRIMARY KEY,
+  Tap_thue_bao TEXT NOT NULL
+);
+
+DROP TABLE IF EXISTS subscribers;
+CREATE TABLE subscribers (
+  id TEXT PRIMARY KEY,
+  phoneNumber TEXT NOT NULL,
+  fullName TEXT NOT NULL,
+  idNumber TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  createdBy TEXT NOT NULL,
+  creatorName TEXT NOT NULL,
+  unitId TEXT NOT NULL,
+  unitName TEXT NOT NULL,
+  imageUrl TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers(phoneNumber);
+CREATE INDEX IF NOT EXISTS idx_subscribers_idNumber ON subscribers(idNumber);
+CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`, 'fix_fk_sql')}
+            className="px-2.5 py-1 bg-rose-750 hover:bg-rose-800 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95 text-xs inline-flex mb-1"
+          >
+            <Copy className="w-3 h-3" />
+            {copiedId === 'fix_fk_sql' ? 'Đã copy câu lệnh sửa lỗi!' : 'Copy lệnh SQL Xóa & Tạo lại bảng chuẩn (Sửa lỗi FOREIGN KEY)'}
+          </button>
+          <p className="mt-1.5 text-[10px] text-rose-700">
+            * Sau khi thực thi đoạn mã trên, cơ sở dữ liệu D1 trực tuyến sẽ sẵn sàng đón nhận dữ liệu từ mọi nguồn cập nhật mà không bị xung đột khóa ngoại nữa. Bạn có thể bấm <strong>"Tiến hành tải lên"</strong> lại trên giao diện.
+          </p>
+        </div>
+
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-400"></span>
