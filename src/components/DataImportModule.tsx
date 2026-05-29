@@ -8,9 +8,14 @@ interface DataImportModuleProps {
     role: string;
     canImportData?: boolean;
   };
+  cloudflareConfig?: {
+    enabled: boolean;
+    workerUrl: string;
+    apiSecret: string;
+  };
 }
 
-export default function DataImportModule({ currentUser }: DataImportModuleProps) {
+export default function DataImportModule({ currentUser, cloudflareConfig }: DataImportModuleProps) {
   // Check permission guard
   const hasPermission = currentUser.role === 'Admin' || currentUser.canImportData === true;
 
@@ -186,9 +191,20 @@ export default function DataImportModule({ currentUser }: DataImportModuleProps)
 
         const batchSize = 500;
         const totalBatches = Math.ceil(mappedRecords.length / batchSize);
+        
+        const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
+        const baseUrl = isCloud ? cloudflareConfig.workerUrl.trim().replace(/\/+$/, '') : '';
         const endpoint = activeImportType === 'muctieu' 
-          ? '/api/subscriber-status/upload-muctieu' 
-          : '/api/subscriber-status/upload-ketqua';
+          ? `${baseUrl}/api/subscriber-status/upload-muctieu` 
+          : `${baseUrl}/api/subscriber-status/upload-ketqua`;
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (isCloud && cloudflareConfig?.apiSecret) {
+          headers['x-api-secret'] = cloudflareConfig.apiSecret;
+        }
 
         for (let i = 0; i < totalBatches; i++) {
           const start = i * batchSize;
@@ -197,14 +213,16 @@ export default function DataImportModule({ currentUser }: DataImportModuleProps)
 
           const resp = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({ records: chunk }),
           });
 
           if (!resp.ok) {
-            throw new Error(`Lỗi tải lên dữ liệu lô thứ ${i + 1}. Không nhận diện được cấu hình DB.`);
+            const errorText = await resp.text().catch(() => '');
+            let parsedErr;
+            try { parsedErr = JSON.parse(errorText); } catch(e) {}
+            const errMsg = parsedErr?.error || errorText || 'Không nhận diện được cấu hình DB.';
+            throw new Error(`Lỗi tải lên dữ liệu lô thứ ${i + 1} lên mây: ${errMsg}`);
           }
 
           const pct = Math.round((end / mappedRecords.length) * 100);

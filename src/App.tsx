@@ -1408,11 +1408,11 @@ export default function App() {
             )}
 
             {currentTab === 'db_lookup' && (
-              <SubscriberUpdateLookupModule />
+              <SubscriberUpdateLookupModule cloudflareConfig={cloudflareConfig} />
             )}
 
             {currentTab === 'import_data' && (
-              <DataImportModule currentUser={currentUser} />
+              <DataImportModule currentUser={currentUser} cloudflareConfig={cloudflareConfig} />
             )}
 
             {currentTab === 'guide' && currentUser?.username === 'admin' && (

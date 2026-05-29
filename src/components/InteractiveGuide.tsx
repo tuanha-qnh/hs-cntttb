@@ -63,7 +63,22 @@ CREATE TABLE IF NOT EXISTS subscribers (
 -- Index tìm kiếm tối ưu hóa cho tra cứu nhanh
 CREATE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers(phoneNumber);
 CREATE INDEX IF NOT EXISTS idx_subscribers_idNumber ON subscribers(idNumber);
-CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);`;
+CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);
+
+-- 4. TẠO BẢNG TẬP THUÊ BAO MỤC TIÊU CSDL D1
+CREATE TABLE IF NOT EXISTS DS_TB_MUCTIEU (
+  So_thue_bao TEXT PRIMARY KEY,
+  Tap_thue_bao TEXT NOT NULL
+);
+
+-- 5. TẠO BẢNG KẾT QUẢ CẬP NHẬT TTTB CSDL D1
+CREATE TABLE IF NOT EXISTS KQ_CNTTTB (
+  so_thue_bao TEXT PRIMARY KEY,
+  User_capnhat TEXT,
+  Ma_hrm_CN TEXT,
+  Kenh_CN TEXT,
+  Ngay_CN TEXT
+);`;
 
   const corsPolicyJson = `[
   {
@@ -114,6 +129,12 @@ export default {
     const isUsersPath = path === "/api/users" || path === "/users";
     const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
     const isTestPath = path === "/api/test" || path === "/test";
+
+    // Khai báo định tuyến bổ sung cho Module quản lý CSDL D1 cập nhật TTTB
+    const isSubMuctieuUploadPath = path === "/api/subscriber-status/upload-muctieu" || path === "/subscriber-status/upload-muctieu";
+    const isSubKetquaUploadPath = path === "/api/subscriber-status/upload-ketqua" || path === "/subscriber-status/upload-ketqua";
+    const isSubListPath = path === "/api/subscriber-status/list" || path === "/subscriber-status/list";
+    const isSubLookupPath = path === "/api/subscriber-status/lookup" || path === "/subscriber-status/lookup";
 
     // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
     try {
@@ -297,6 +318,169 @@ export default {
         });
       }
 
+      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu
+      if (isSubMuctieuUploadPath && request.method === "POST") {
+        const { records } = await request.json();
+        if (!Array.isArray(records)) {
+          return new Response(JSON.stringify({ error: "Định dạng danh sách thuê bao không thích hợp." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const statements = [];
+        for (const item of records) {
+          const sdt = String(item.So_thue_bao || "").trim();
+          if (!sdt) continue;
+          const tap = String(item.Tap_thue_bao || "Mặc định").trim();
+          statements.push(
+            env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(sdt, tap)
+          );
+        }
+
+        if (statements.length > 0) {
+          await env.DB.batch(statements);
+        }
+
+        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB
+      if (isSubKetquaUploadPath && request.method === "POST") {
+        const { records } = await request.json();
+        if (!Array.isArray(records)) {
+          return new Response(JSON.stringify({ error: "Định dạng danh sách kết quả không thích hợp." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const statements = [];
+        for (const item of records) {
+          const sdt = String(item.so_thue_bao || "").trim();
+          if (!sdt) continue;
+          const user = String(item.User_capnhat || "").trim();
+          const hrm = String(item.Ma_hrm_CN || "").trim();
+          const kenh = String(item.Kenh_CN || "").trim();
+          const ngay = String(item.Ngay_CN || "").trim();
+          statements.push(
+            env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)").bind(sdt, user, hrm, kenh, ngay)
+          );
+        }
+
+        if (statements.length > 0) {
+          await env.DB.batch(statements);
+        }
+
+        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.3. Cloud D1: Danh sách tổng hợp trạng thái chuẩn hóa của tất cả dải máy
+      if (isSubListPath && request.method === "GET") {
+        const muctieuRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU").all();
+        const ketquaRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB").all();
+        
+        const muctieuList = muctieuRes.results || [];
+        const ketquaList = ketquaRes.results || [];
+        
+        const unified = [];
+        const visited = new Set();
+        
+        for (const item of muctieuList) {
+          const sdt = String(item.So_thue_bao || "").trim();
+          if (!sdt) continue;
+          visited.add(sdt.toLowerCase());
+          
+          const kq = ketquaList.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === sdt.toLowerCase());
+          unified.push({
+            So_thue_bao: sdt,
+            Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+            IsUpdated: !!kq,
+            User_capnhat: kq ? kq.User_capnhat : null,
+            Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
+            Kenh_CN: kq ? kq.Kenh_CN : null,
+            Ngay_CN: kq ? kq.Ngay_CN : null,
+          });
+        }
+        
+        for (const item of ketquaList) {
+          const sdt = String(item.so_thue_bao || "").trim();
+          if (!sdt) continue;
+          if (!visited.has(sdt.toLowerCase())) {
+            unified.push({
+              So_thue_bao: sdt,
+              Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)",
+              IsUpdated: true,
+              User_capnhat: item.User_capnhat,
+              Ma_hrm_CN: item.Ma_hrm_CN,
+              Kenh_CN: item.Kenh_CN,
+              Ngay_CN: item.Ngay_CN,
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ success: true, records: unified }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.4. Cloud D1: Tra cứu đơn lẻ một thuê bao có đồng bộ chéo gia tăng dải số mục tiêu
+      if (isSubLookupPath && request.method === "GET") {
+        const phone = String(url.searchParams.get("phone") || "").trim();
+        if (!phone) {
+          return new Response(JSON.stringify({ error: "Thiếu số thuê bao tra cứu" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const cleanPhone = phone.replace(/^(\+84|84)/, "0");
+
+        const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first();
+        const kqRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB WHERE so_thue_bao = ?1 OR so_thue_bao = ?2").bind(cleanPhone, phone).first();
+
+        let mucTieuRecord = mtRes || null;
+        let ketQuaRecord = kqRes || null;
+
+        let didSync = false;
+        if (ketQuaRecord && !mucTieuRecord) {
+          mucTieuRecord = {
+            So_thue_bao: ketQuaRecord.so_thue_bao || cleanPhone,
+            Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)"
+          };
+          await env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(mucTieuRecord.So_thue_bao, mucTieuRecord.Tap_thue_bao).run();
+          didSync = true;
+        }
+
+        if (!mucTieuRecord && !ketQuaRecord) {
+          return new Response(JSON.stringify({
+            found: false,
+            status: "NOT_FOUND",
+            message: "Số thuê bao không tồn tại trong danh mục mục tiêu hay kết quả cập nhật."
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        return new Response(JSON.stringify({
+          found: true,
+          synchronized: didSync,
+          So_thue_bao: phone,
+          Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
+          IsUpdated: !!ketQuaRecord,
+          User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
+          Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
+          Kenh_CN: ketQuaRecord ? ketQuaRecord.Kenh_CN : null,
+          Ngay_CN: ketQuaRecord ? ketQuaRecord.Ngay_CN : null
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
       // 8. Endpoint: Kiểm tra kết nối kiểm thử hệ thống
       if (isTestPath && request.method === "GET") {
         return new Response(JSON.stringify({ status: "connected", db: "D1", storage: "R2", time: new Date().toISOString() }), {
@@ -359,6 +543,12 @@ export default {
     const isUsersPath = path === "/api/users" || path === "/users";
     const isFilesPath = path.startsWith("/api/files/") || path.startsWith("/files/");
     const isTestPath = path === "/api/test" || path === "/test";
+
+    // Khai báo định tuyến bổ sung cho Module quản lý CSDL D1 cập nhật TTTB (TS Worker)
+    const isSubMuctieuUploadPath = path === "/api/subscriber-status/upload-muctieu" || path === "/subscriber-status/upload-muctieu";
+    const isSubKetquaUploadPath = path === "/api/subscriber-status/upload-ketqua" || path === "/subscriber-status/upload-ketqua";
+    const isSubListPath = path === "/api/subscriber-status/list" || path === "/subscriber-status/list";
+    const isSubLookupPath = path === "/api/subscriber-status/lookup" || path === "/subscriber-status/lookup";
 
     // Khởi tạo phản hồi mặc định bọc trong try-catch để gán CORS trong mọi trạng thái lỗi hoặc ngoại lệ
     try {
@@ -538,6 +728,169 @@ export default {
         }
 
         return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu
+      if (isSubMuctieuUploadPath && request.method === "POST") {
+        const { records } = await request.json() as any;
+        if (!Array.isArray(records)) {
+          return new Response(JSON.stringify({ error: "Định dạng danh sách thuê bao không thích hợp." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const statements = [];
+        for (const item of records) {
+          const sdt = String(item.So_thue_bao || "").trim();
+          if (!sdt) continue;
+          const tap = String(item.Tap_thue_bao || "Mặc định").trim();
+          statements.push(
+            env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(sdt, tap)
+          );
+        }
+
+        if (statements.length > 0) {
+          await env.DB.batch(statements);
+        }
+
+        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB
+      if (isSubKetquaUploadPath && request.method === "POST") {
+        const { records } = await request.json() as any;
+        if (!Array.isArray(records)) {
+          return new Response(JSON.stringify({ error: "Định dạng danh sách kết quả không thích hợp." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const statements = [];
+        for (const item of records) {
+          const sdt = String(item.so_thue_bao || "").trim();
+          if (!sdt) continue;
+          const user = String(item.User_capnhat || "").trim();
+          const hrm = String(item.Ma_hrm_CN || "").trim();
+          const kenh = String(item.Kenh_CN || "").trim();
+          const ngay = String(item.Ngay_CN || "").trim();
+          statements.push(
+            env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)").bind(sdt, user, hrm, kenh, ngay)
+          );
+        }
+
+        if (statements.length > 0) {
+          await env.DB.batch(statements);
+        }
+
+        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.3. Cloud D1: Danh sách tổng hợp trạng thái chuẩn hóa của tất cả dải máy
+      if (isSubListPath && request.method === "GET") {
+        const muctieuRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU").all();
+        const ketquaRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB").all();
+        
+        const muctieuList = (muctieuRes.results || []) as any[];
+        const ketquaList = (ketquaRes.results || []) as any[];
+        
+        const unified = [];
+        const visited = new Set();
+        
+        for (const item of muctieuList) {
+          const sdt = String(item.So_thue_bao || "").trim();
+          if (!sdt) continue;
+          visited.add(sdt.toLowerCase());
+          
+          const kq = ketquaList.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === sdt.toLowerCase());
+          unified.push({
+            So_thue_bao: sdt,
+            Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+            IsUpdated: !!kq,
+            User_capnhat: kq ? kq.User_capnhat : null,
+            Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
+            Kenh_CN: kq ? kq.Kenh_CN : null,
+            Ngay_CN: kq ? kq.Ngay_CN : null,
+          });
+        }
+        
+        for (const item of ketquaList) {
+          const sdt = String(item.so_thue_bao || "").trim();
+          if (!sdt) continue;
+          if (!visited.has(sdt.toLowerCase())) {
+            unified.push({
+              So_thue_bao: sdt,
+              Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)",
+              IsUpdated: true,
+              User_capnhat: item.User_capnhat,
+              Ma_hrm_CN: item.Ma_hrm_CN,
+              Kenh_CN: item.Kenh_CN,
+              Ngay_CN: item.Ngay_CN,
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ success: true, records: unified }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // 7.4. Cloud D1: Tra cứu đơn lẻ một thuê bao có đồng bộ chéo gia tăng dải số mục tiêu
+      if (isSubLookupPath && request.method === "GET") {
+        const phone = String(url.searchParams.get("phone") || "").trim();
+        if (!phone) {
+          return new Response(JSON.stringify({ error: "Thiếu số thuê bao tra cứu" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const cleanPhone = phone.replace(/^(\+84|84)/, "0");
+
+        const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
+        const kqRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB WHERE so_thue_bao = ?1 OR so_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
+
+        let mucTieuRecord = mtRes || null;
+        let ketQuaRecord = kqRes || null;
+
+        let didSync = false;
+        if (ketQuaRecord && !mucTieuRecord) {
+          mucTieuRecord = {
+            So_thue_bao: ketQuaRecord.so_thue_bao || cleanPhone,
+            Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)"
+          };
+          await env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(mucTieuRecord.So_thue_bao, mucTieuRecord.Tap_thue_bao).run();
+          didSync = true;
+        }
+
+        if (!mucTieuRecord && !ketQuaRecord) {
+          return new Response(JSON.stringify({
+            found: false,
+            status: "NOT_FOUND",
+            message: "Số thuê bao không tồn tại trong danh mục mục tiêu hay kết quả cập nhật."
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        return new Response(JSON.stringify({
+          found: true,
+          synchronized: didSync,
+          So_thue_bao: phone,
+          Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
+          IsUpdated: !!ketQuaRecord,
+          User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
+          Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
+          Kenh_CN: ketQuaRecord ? ketQuaRecord.Kenh_CN : null,
+          Ngay_CN: ketQuaRecord ? ketQuaRecord.Ngay_CN : null
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }

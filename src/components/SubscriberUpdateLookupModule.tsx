@@ -19,7 +19,15 @@ interface UnifiedRecord {
   Ngay_CN?: string | null;
 }
 
-export default function SubscriberUpdateLookupModule() {
+interface SubscriberUpdateLookupModuleProps {
+  cloudflareConfig?: {
+    enabled: boolean;
+    workerUrl: string;
+    apiSecret: string;
+  };
+}
+
+export default function SubscriberUpdateLookupModule({ cloudflareConfig }: SubscriberUpdateLookupModuleProps) {
   const [records, setRecords] = useState<UnifiedRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +49,22 @@ export default function SubscriberUpdateLookupModule() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch('/api/subscriber-status/list');
+      const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
+      const baseUrl = isCloud ? cloudflareConfig.workerUrl.trim().replace(/\/+$/, '') : '';
+      const endpoint = `${baseUrl}/api/subscriber-status/list`;
+
+      const headers: Record<string, string> = {};
+      if (isCloud && cloudflareConfig?.apiSecret) {
+        headers['x-api-secret'] = cloudflareConfig.apiSecret;
+      }
+
+      const resp = await fetch(endpoint, { headers });
       if (!resp.ok) {
-        throw new Error('Không thể kết nối danh sách CSDL D1. Vui lòng kiểm tra lại cấu hình kết nối.');
+        const errorText = await resp.text().catch(() => '');
+        let parsedErr;
+        try { parsedErr = JSON.parse(errorText); } catch(e) {}
+        const errMsg = parsedErr?.error || errorText || 'Không thể kết nối danh sách CSDL D1. Kiểm tra lại cấu hình liên kết.';
+        throw new Error(errMsg);
       }
       const data = await resp.json();
       if (data.success) {
@@ -72,9 +93,22 @@ export default function SubscriberUpdateLookupModule() {
     setLookupResult(null);
 
     try {
-      const resp = await fetch(`/api/subscriber-status/lookup?phone=${encodeURIComponent(phone)}`);
+      const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
+      const baseUrl = isCloud ? cloudflareConfig.workerUrl.trim().replace(/\/+$/, '') : '';
+      const endpoint = `${baseUrl}/api/subscriber-status/lookup?phone=${encodeURIComponent(phone)}`;
+
+      const headers: Record<string, string> = {};
+      if (isCloud && cloudflareConfig?.apiSecret) {
+        headers['x-api-secret'] = cloudflareConfig.apiSecret;
+      }
+
+      const resp = await fetch(endpoint, { headers });
       if (!resp.ok) {
-        throw new Error('Lỗi liên kết CSDL D1.');
+        const errorText = await resp.text().catch(() => '');
+        let parsedErr;
+        try { parsedErr = JSON.parse(errorText); } catch(e) {}
+        const errMsg = parsedErr?.error || errorText || 'Lỗi liên kết CSDL D1.';
+        throw new Error(errMsg);
       }
       const data = await resp.json();
       setLookupResult(data);
