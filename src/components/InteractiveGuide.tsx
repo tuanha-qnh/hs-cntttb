@@ -320,7 +320,7 @@ export default {
 
       // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu (Chế độ ghi đè dữ liệu cũ)
       if (isSubMuctieuUploadPath && request.method === "POST") {
-        const { records, isFirstBatch } = await request.json() as any;
+        const { records, isFirstBatch } = await request.json();
         const shouldReset = isFirstBatch !== false;
 
         if (!Array.isArray(records)) {
@@ -364,7 +364,7 @@ export default {
 
       // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB (Chế độ ghi đè dữ liệu cũ)
       if (isSubKetquaUploadPath && request.method === "POST") {
-        const { records, isFirstBatch } = await request.json() as any;
+        const { records, isFirstBatch } = await request.json();
         const shouldReset = isFirstBatch !== false;
 
         if (!Array.isArray(records)) {
