@@ -329,7 +329,9 @@ export default {
         }
 
         const statements = [];
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        // Tắt tạm thời kiểm tra khóa ngoại để thực hiện chuyển đổi dữ liệu an toàn dưới Cloudflare D1
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
         statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
 
         for (const item of records) {
@@ -342,6 +344,9 @@ export default {
             ).bind(sdt, tap)
           );
         }
+
+        // Bật lại kiểm tra khóa ngoại sau khi hoàn tất nạp dữ liệu
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = ON"));
 
         if (statements.length > 0) {
           await env.DB.batch(statements);
@@ -363,7 +368,9 @@ export default {
         }
 
         const statements = [];
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        // Tắt tạm thời kiểm tra khóa ngoại để tránh các lỗi ràng buộc ngoại lai lúc sửa đổi lô lớn
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
         statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
 
         for (const item of records) {
@@ -374,12 +381,22 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
+          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm bất kỳ ràng buộc khóa ngoại (Foreign Key) nào
+          statements.push(
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
+            ).bind(sdt)
+          );
+
           statements.push(
             env.DB.prepare(
               "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
+
+        // Bật lại kiểm tra khóa ngoại
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = ON"));
 
         if (statements.length > 0) {
           await env.DB.batch(statements);
@@ -754,7 +771,9 @@ export default {
         }
 
         const statements = [];
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        // Tắt kiểm tra khóa ngoại tạm thời để xóa/nạp dữ liệu an toàn dưới Cloudflare D1
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
         statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
 
         for (const item of records) {
@@ -767,6 +786,9 @@ export default {
             ).bind(sdt, tap)
           );
         }
+
+        // Bật lại kiểm tra khóa ngoại sau khi hoàn tất nạp dữ liệu
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = ON"));
 
         if (statements.length > 0) {
           await env.DB.batch(statements);
@@ -788,7 +810,9 @@ export default {
         }
 
         const statements = [];
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè
+        // Tắt tạm thời kiểm tra khóa ngoại để tránh lỗi xảy ra khi nạp ghi đè
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
+        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
         statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
 
         for (const item of records) {
@@ -799,12 +823,22 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
+          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để tránh vi phạm bất kỳ ràng buộc khóa ngoại (Foreign Key) nào
+          statements.push(
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
+            ).bind(sdt)
+          );
+
           statements.push(
             env.DB.prepare(
               "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
+
+        // Bật lại kiểm tra khóa ngoại
+        statements.push(env.DB.prepare("PRAGMA foreign_keys = ON"));
 
         if (statements.length > 0) {
           await env.DB.batch(statements);
