@@ -214,7 +214,10 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
           const resp = await fetch(endpoint, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ records: chunk }),
+            body: JSON.stringify({ 
+              records: chunk,
+              isFirstBatch: i === 0 
+            }),
           });
 
           if (!resp.ok) {

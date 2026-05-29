@@ -320,7 +320,9 @@ export default {
 
       // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu (Chế độ ghi đè dữ liệu cũ)
       if (isSubMuctieuUploadPath && request.method === "POST") {
-        const { records } = await request.json();
+        const { records, isFirstBatch } = await request.json() as any;
+        const shouldReset = isFirstBatch !== false;
+
         if (!Array.isArray(records)) {
           return new Response(JSON.stringify({ error: "Định dạng danh sách thuê bao không thích hợp." }), {
             status: 400,
@@ -331,8 +333,11 @@ export default {
         const statements = [];
         // Tắt tạm thời kiểm tra khóa ngoại để thực hiện chuyển đổi dữ liệu an toàn dưới Cloudflare D1
         statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
-        statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+        
+        // Xóa sạch toàn bộ dữ liệu cũ khi nhận lô đầu tiên để thực hiện chế độ Ghi đè hoàn toàn
+        if (shouldReset) {
+          statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+        }
 
         for (const item of records) {
           const sdt = String(item.So_thue_bao || "").trim();
@@ -340,7 +345,7 @@ export default {
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)"
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
             ).bind(sdt, tap)
           );
         }
@@ -359,7 +364,9 @@ export default {
 
       // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB (Chế độ ghi đè dữ liệu cũ)
       if (isSubKetquaUploadPath && request.method === "POST") {
-        const { records } = await request.json();
+        const { records, isFirstBatch } = await request.json() as any;
+        const shouldReset = isFirstBatch !== false;
+
         if (!Array.isArray(records)) {
           return new Response(JSON.stringify({ error: "Định dạng danh sách kết quả không thích hợp." }), {
             status: 400,
@@ -370,8 +377,11 @@ export default {
         const statements = [];
         // Tắt tạm thời kiểm tra khóa ngoại để tránh các lỗi ràng buộc ngoại lai lúc sửa đổi lô lớn
         statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
-        statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+        
+        // Xóa sạch toàn bộ dữ liệu cũ khi nhận lô đầu tiên để thực hiện chế độ Ghi đè hoàn toàn
+        if (shouldReset) {
+          statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+        }
 
         for (const item of records) {
           const sdt = String(item.so_thue_bao || "").trim();
@@ -390,7 +400,7 @@ export default {
 
           statements.push(
             env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
@@ -762,7 +772,8 @@ export default {
 
       // 7.1. Cloud D1: Upload danh sách dải số thuê bao mục tiêu (Chế độ ghi đè dữ liệu cũ)
       if (isSubMuctieuUploadPath && request.method === "POST") {
-        const { records } = await request.json() as any;
+        const { records, isFirstBatch } = await request.json() as any;
+        const shouldReset = isFirstBatch !== false;
         if (!Array.isArray(records)) {
           return new Response(JSON.stringify({ error: "Định dạng danh sách thuê bao không thích hợp." }), {
             status: 400,
@@ -773,8 +784,11 @@ export default {
         const statements = [];
         // Tắt kiểm tra khóa ngoại tạm thời để xóa/nạp dữ liệu an toàn dưới Cloudflare D1
         statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
-        statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+        
+        // Xóa sạch toàn bộ dữ liệu cũ khi nhận lô đầu tiên để thực hiện chế độ Ghi đè hoàn toàn
+        if (shouldReset) {
+          statements.push(env.DB.prepare("DELETE FROM DS_TB_MUCTIEU"));
+        }
 
         for (const item of records) {
           const sdt = String(item.So_thue_bao || "").trim();
@@ -782,7 +796,7 @@ export default {
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)"
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
             ).bind(sdt, tap)
           );
         }
@@ -801,7 +815,8 @@ export default {
 
       // 7.2. Cloud D1: Upload danh sách kết quả thực hiện cập nhật TTTB (Chế độ ghi đè dữ liệu cũ)
       if (isSubKetquaUploadPath && request.method === "POST") {
-        const { records } = await request.json() as any;
+        const { records, isFirstBatch } = await request.json() as any;
+        const shouldReset = isFirstBatch !== false;
         if (!Array.isArray(records)) {
           return new Response(JSON.stringify({ error: "Định dạng danh sách kết quả không thích hợp." }), {
             status: 400,
@@ -812,8 +827,11 @@ export default {
         const statements = [];
         // Tắt tạm thời kiểm tra khóa ngoại để tránh lỗi xảy ra khi nạp ghi đè
         statements.push(env.DB.prepare("PRAGMA foreign_keys = OFF"));
-        // Xóa sạch toàn bộ dữ liệu cũ trước khi nạp mới để thực hiện chế độ Ghi đè hoàn toàn
-        statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+        
+        // Xóa sạch toàn bộ dữ liệu cũ khi nhận lô đầu tiên để thực hiện chế độ Ghi đè hoàn toàn
+        if (shouldReset) {
+          statements.push(env.DB.prepare("DELETE FROM KQ_CNTTTB"));
+        }
 
         for (const item of records) {
           const sdt = String(item.so_thue_bao || "").trim();
@@ -832,7 +850,7 @@ export default {
 
           statements.push(
             env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
