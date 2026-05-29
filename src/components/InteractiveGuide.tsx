@@ -438,7 +438,7 @@ export default {
           });
         }
 
-        const cleanPhone = phone.replace(/^(\+84|84)/, "0");
+        const cleanPhone = phone.replace(/^(\\+84|84)/, "0");
 
         const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first();
         const kqRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB WHERE so_thue_bao = ?1 OR so_thue_bao = ?2").bind(cleanPhone, phone).first();
@@ -852,7 +852,7 @@ export default {
           });
         }
 
-        const cleanPhone = phone.replace(/^(\+84|84)/, "0");
+        const cleanPhone = phone.replace(/^(\\+84|84)/, "0");
 
         const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
         const kqRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB WHERE so_thue_bao = ?1 OR so_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
