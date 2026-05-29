@@ -118,6 +118,56 @@ async function startServer() {
     }
   });
 
+  // API to list unified subscriber status database (joining DS_TB_MUCTIEU & KQ_CNTTTB)
+  app.get("/api/subscriber-status/list", (req, res) => {
+    try {
+      const database = getDatabase();
+      const unified: any[] = [];
+      const visited = new Set<string>();
+
+      // First add all from DS_TB_MUCTIEU
+      for (const item of database.DS_TB_MUCTIEU) {
+        const phone = String(item.So_thue_bao || "").trim();
+        if (!phone) continue;
+        visited.add(phone.toLowerCase());
+
+        // check if updated
+        const kq = database.KQ_CNTTTB.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === phone.toLowerCase());
+        unified.push({
+          So_thue_bao: phone,
+          Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+          IsUpdated: !!kq,
+          User_capnhat: kq ? kq.User_capnhat : null,
+          Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
+          Kenh_CN: kq ? kq.Kenh_CN : null,
+          Ngay_CN: kq ? kq.Ngay_CN : null,
+        });
+      }
+
+      // Then add any from KQ_CNTTTB that are not in DS_TB_MUCTIEU
+      for (const item of database.KQ_CNTTTB) {
+        const phone = String(item.so_thue_bao || "").trim();
+        if (!phone) continue;
+        if (!visited.has(phone.toLowerCase())) {
+          unified.push({
+            So_thue_bao: phone,
+            Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)",
+            IsUpdated: true,
+            User_capnhat: item.User_capnhat,
+            Ma_hrm_CN: item.Ma_hrm_CN,
+            Kenh_CN: item.Kenh_CN,
+            Ngay_CN: item.Ngay_CN,
+          });
+        }
+      }
+
+      return res.json({ success: true, records: unified });
+    } catch (err: any) {
+      console.error("Error retrieving unified subscriber list:", err);
+      return res.status(500).json({ error: err.message || "Failed to list unified subscribers" });
+    }
+  });
+
   // API chunk or bulk insert/overwrite DS_TB_MUCTIEU (subscriber targets)
   app.post("/api/subscriber-status/upload-muctieu", (req, res) => {
     try {

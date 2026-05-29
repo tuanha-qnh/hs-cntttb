@@ -16,6 +16,7 @@ import DashboardStatsModule from './components/DashboardStatsModule';
 import AdminModule from './components/AdminModule';
 import InteractiveGuide from './components/InteractiveGuide';
 import DataImportModule from './components/DataImportModule';
+import SubscriberUpdateLookupModule from './components/SubscriberUpdateLookupModule';
 
 // ----------------------------------------------------------------------
 // INITIAL MOCK DATABASES FOR TESTING & PRESENTATION out of the box
@@ -207,7 +208,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'guide' | 'admin' | 'import_data'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'guide' | 'admin' | 'import_data'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Automatically parse setup query parameters on load for device setup
@@ -1273,6 +1274,18 @@ export default function App() {
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Hồ sơ lưu trữ</span>
               </button>
 
+              <button
+                onClick={() => setCurrentTab('db_lookup')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                  currentTab === 'db_lookup'
+                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <CheckCircle className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'db_lookup' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Kết quả TTTB</span>
+              </button>
+
               {currentUser?.username === 'admin' && (
                 <button
                   onClick={() => setCurrentTab('guide')}
@@ -1344,6 +1357,7 @@ export default function App() {
                 {currentTab === 'stats' && 'BÁO CÁO THỐNG KÊ HOẠT ĐỘNG'}
                 {currentTab === 'entry' && 'NHẬP LIỆU CẬP NHẬT THÔNG TIN THUÊ BAO'}
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
+                {currentTab === 'db_lookup' && 'TRA CỨU TRẠNG THÁI CSDL D1'}
                 {currentTab === 'guide' && 'HƯỚNG DẪN CẤU HÌNH CLOUDFLARE TOÀN DIỆN'}
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
                 {currentTab === 'import_data' && 'UPLOAD & IMPORT DỮ LIỆU CSDL D1'}
@@ -1351,7 +1365,8 @@ export default function App() {
               <p className="text-xs text-slate-500 font-sans mt-0.5">
                 {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
                 {currentTab === 'entry' && 'Đăng biên nhận, điền thông tin và kéo thả phiếu yêu cầu cập nhật lên CDN.'}
-                {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng.'}
+                {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng từ kho bản scan.'}
+                {currentTab === 'db_lookup' && 'Tra cứu toàn bộ trạng thái chuẩn hóa, dải số mục tiêu và kết quả thực hiện TTTB.'}
                 {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
                 {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
                 {currentTab === 'import_data' && 'Đồng bộ tải lên danh sách thuê bao mục tiêu cần hoàn thiện và kết quả cập nhật.'}
@@ -1390,6 +1405,10 @@ export default function App() {
 
             {currentTab === 'lookup' && (
               <SubscriberLookupModule records={subscribers} />
+            )}
+
+            {currentTab === 'db_lookup' && (
+              <SubscriberUpdateLookupModule />
             )}
 
             {currentTab === 'import_data' && (
