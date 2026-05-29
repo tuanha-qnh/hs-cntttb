@@ -334,7 +334,9 @@ export default {
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
-            env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(sdt, tap)
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
+            ).bind(sdt, tap)
           );
         }
 
@@ -365,8 +367,18 @@ export default {
           const hrm = String(item.Ma_hrm_CN || "").trim();
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
+
+          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm ràng buộc khóa ngoại (Foreign Key)
           statements.push(
-            env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)").bind(sdt, user, hrm, kenh, ngay)
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
+            ).bind(sdt)
+          );
+
+          statements.push(
+            env.DB.prepare(
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+            ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
 
@@ -374,7 +386,7 @@ export default {
           await env.DB.batch(statements);
         }
 
-        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+        return new Response(JSON.stringify({ success: true, total: records.length }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
@@ -748,7 +760,9 @@ export default {
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           statements.push(
-            env.DB.prepare("INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2)").bind(sdt, tap)
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
+            ).bind(sdt, tap)
           );
         }
 
@@ -779,8 +793,18 @@ export default {
           const hrm = String(item.Ma_hrm_CN || "").trim();
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
+
+          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm ràng buộc khóa ngoại (Foreign Key)
           statements.push(
-            env.DB.prepare("INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)").bind(sdt, user, hrm, kenh, ngay)
+            env.DB.prepare(
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
+            ).bind(sdt)
+          );
+
+          statements.push(
+            env.DB.prepare(
+              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+            ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
 
@@ -788,7 +812,7 @@ export default {
           await env.DB.batch(statements);
         }
 
-        return new Response(JSON.stringify({ success: true, total: statements.length }), {
+        return new Response(JSON.stringify({ success: true, total: records.length }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
