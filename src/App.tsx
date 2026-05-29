@@ -278,7 +278,8 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+                canImportData: u.canImportData === 1 || u.canImportData === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -375,7 +376,8 @@ export default function App() {
             if (Array.isArray(externalUsers) && externalUsers.length > 0) {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+                canImportData: u.canImportData === 1 || u.canImportData === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -511,7 +513,8 @@ export default function App() {
               // SQLite lưu boolean dạng số 0/1, chuyển đổi ngược về true/false
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
-                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+                isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+                canImportData: u.canImportData === 1 || u.canImportData === true
               }));
               setUsers(parsedUsers);
             }
@@ -859,7 +862,8 @@ export default function App() {
       
       const parsedUsers = externalUsers.map((u: any) => ({
         ...u,
-        isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true
+        isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
+        canImportData: u.canImportData === 1 || u.canImportData === true
       }));
       setUsers(parsedUsers);
       localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));

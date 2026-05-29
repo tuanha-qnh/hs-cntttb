@@ -39,12 +39,13 @@ CREATE TABLE IF NOT EXISTS users (
   unitId TEXT NOT NULL,
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
-  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026',
+  canImportData INTEGER NOT NULL DEFAULT 0
 );
 
 -- Chèn dữ liệu tài khoản quản trị và giao dịch viên mẫu
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin');
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026');
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0);
 
 -- 3. TẠO BẢNG HỒ SƠ THUÊ BAO
 CREATE TABLE IF NOT EXISTS subscribers (
@@ -308,9 +309,10 @@ export default {
           // "create" hoặc "update"
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
+          const dbCanImport = user.canImportData ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -391,13 +393,6 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
-          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để không vi phạm bất kỳ ràng buộc khóa ngoại (Foreign Key) nào
-          statements.push(
-            env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
-            ).bind(sdt)
-          );
-
           statements.push(
             env.DB.prepare(
               "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
@@ -428,12 +423,21 @@ export default {
         const unified = [];
         const visited = new Set();
         
+        const kqMap = new Map();
+        for (const k of ketquaList) {
+          const sdt = String(k.so_thue_bao || "").trim().toLowerCase();
+          if (sdt) {
+            kqMap.set(sdt, k);
+          }
+        }
+        
         for (const item of muctieuList) {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
-          visited.add(sdt.toLowerCase());
+          const sdtLower = sdt.toLowerCase();
+          visited.add(sdtLower);
           
-          const kq = ketquaList.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === sdt.toLowerCase());
+          const kq = kqMap.get(sdtLower);
           unified.push({
             So_thue_bao: sdt,
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
@@ -760,9 +764,10 @@ export default {
           // "create" hoặc "update"
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
+          const dbCanImport = user.canImportData ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -841,13 +846,6 @@ export default {
           const kenh = String(item.Kenh_CN || "").trim();
           const ngay = String(item.Ngay_CN || "").trim();
 
-          // Thêm trước vào DS_TB_MUCTIEU nếu chưa có để tránh vi phạm bất kỳ ràng buộc khóa ngoại (Foreign Key) nào
-          statements.push(
-            env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, 'Đồng bộ qua file kết quả') ON CONFLICT(So_thue_bao) DO NOTHING"
-            ).bind(sdt)
-          );
-
           statements.push(
             env.DB.prepare(
               "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
@@ -878,12 +876,21 @@ export default {
         const unified = [];
         const visited = new Set();
         
+        const kqMap = new Map();
+        for (const k of ketquaList) {
+          const sdt = String(k.so_thue_bao || "").trim().toLowerCase();
+          if (sdt) {
+            kqMap.set(sdt, k);
+          }
+        }
+        
         for (const item of muctieuList) {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
-          visited.add(sdt.toLowerCase());
+          const sdtLower = sdt.toLowerCase();
+          visited.add(sdtLower);
           
-          const kq = ketquaList.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === sdt.toLowerCase());
+          const kq = kqMap.get(sdtLower);
           unified.push({
             So_thue_bao: sdt,
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
@@ -1095,7 +1102,14 @@ API_SECRET = "Mật_Khẩu_Tự_Chọn_Bảo_Mật_Cao_Cho_Hệ_Thống"`;
               className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />
-              {copiedId === 'alter_sql' ? 'Đã copy câu lệnh nâng cấp!' : 'Copy lệnh SQL nâng cấp (Giữ lại User cũ)'}
+              {copiedId === 'alter_sql' ? 'Đã copy câu lệnh nâng cấp!' : 'Copy lệnh SQL nâng cấp mật khẩu'}
+            </button>
+            <button
+              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;", 'alter_import_sql')}
+              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
+            >
+              <Copy className="w-3 h-3" />
+              {copiedId === 'alter_import_sql' ? 'Đã copy câu lệnh nâng cấp Quyền upload!' : 'Copy lệnh SQL nâng cấp Quyền upload'}
             </button>
             <button
               onClick={() => copyToClipboard(`DROP TABLE IF EXISTS users;
@@ -1107,10 +1121,11 @@ CREATE TABLE users (
   unitId TEXT NOT NULL,
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
-  password TEXT NOT NULL DEFAULT 'Vnpt@2026'
+  password TEXT NOT NULL DEFAULT 'Vnpt@2026',
+  canImportData INTEGER NOT NULL DEFAULT 0
 );
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin');
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026');`, 'recreate_sql')}
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0);`, 'recreate_sql')}
               className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />

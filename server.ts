@@ -125,14 +125,23 @@ async function startServer() {
       const unified: any[] = [];
       const visited = new Set<string>();
 
+      const kqMap = new Map();
+      for (const k of database.KQ_CNTTTB) {
+        const phone = String(k.so_thue_bao || "").trim().toLowerCase();
+        if (phone) {
+          kqMap.set(phone, k);
+        }
+      }
+
       // First add all from DS_TB_MUCTIEU
       for (const item of database.DS_TB_MUCTIEU) {
         const phone = String(item.So_thue_bao || "").trim();
         if (!phone) continue;
-        visited.add(phone.toLowerCase());
+        const phoneLower = phone.toLowerCase();
+        visited.add(phoneLower);
 
         // check if updated
-        const kq = database.KQ_CNTTTB.find(k => String(k.so_thue_bao || "").trim().toLowerCase() === phone.toLowerCase());
+        const kq = kqMap.get(phoneLower);
         unified.push({
           So_thue_bao: phone,
           Tap_thue_bao: item.Tap_thue_bao || "Mặc định",

@@ -209,19 +209,7 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* KPI Stats Widgets Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Total card */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/50 rounded-full -mr-8 -mt-8 flex items-center justify-center">
-            <Database className="w-10 h-10 text-slate-300" />
-          </div>
-          <span className="text-[10px] text-slate-400 font-sans font-bold uppercase tracking-wider">Tập CSDL (D1)</span>
-          <h3 className="text-2xl font-black font-mono text-slate-800 mt-2">
-            {records.length > 0 ? records.length.toLocaleString('vi-VN') : 0}
-          </h3>
-          <p className="text-[10px] text-slate-500 font-sans mt-1">Tổng dải số thuê bao mục tiêu</p>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Goal Card completed */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full -mr-8 -mt-8 flex items-center justify-center">
