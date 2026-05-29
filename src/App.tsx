@@ -747,6 +747,7 @@ export default function App() {
 
       // 2. Sync users
       let syncUsersSuccessCount = 0;
+      let userSyncError = '';
       for (const u of users) {
         try {
           const res = await fetch(`${cleanUrl}/api/users`, {
@@ -762,9 +763,28 @@ export default function App() {
           });
           if (res.ok) {
             syncUsersSuccessCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            userSyncError = errData.error || `HTTP ${res.status}`;
+            console.error(`Lỗi sync tài khoản ${u.username}:`, userSyncError);
           }
-        } catch (userErr) {
+        } catch (userErr: any) {
+          userSyncError = userErr.message || userErr;
           console.error(`Lỗi sync tài khoản ${u.username}:`, userErr);
+        }
+      }
+
+      if (syncUsersSuccessCount < users.length && userSyncError) {
+        const isMissingColumn = userSyncError.includes('canImportData') || userSyncError.includes('no such column');
+        if (isMissingColumn) {
+          alert(`⚠️ KHÔNG THỂ ĐỒNG BỘ TÀI KHOẢN NHÂN VỰNG LÊN CLOUDFLARE D1!\n\n` +
+                `Nguyên nhân: Cơ sở dữ liệu Cloud D1 của bạn chưa được nâng cấp tương thích (Thiếu cột "canImportData" trong bảng users).\n\n` +
+                `Yêu cầu hành động:\n` +
+                `Vui lòng truy cập trang quản trị Cloudflare D1 của bạn, chọn database và thực thi câu lệnh SQL nâng cấp sau đây:\n\n` +
+                `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n\n` +
+                `Sau khi chạy lệnh SQL trên, vui lòng bấm Đồng bộ lại.`);
+        } else {
+          alert(`⚠️ LỖI ĐỒNG BỘ TÀI KHOẢN SỬ:\nChi tiết lý do từ Worker: ${userSyncError}`);
         }
       }
 

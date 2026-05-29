@@ -42,7 +42,7 @@ export default function AdminModule({
       if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.slice(0, -1);
       }
-      await fetch(`${cleanUrl}/api/units`, {
+      const response = await fetch(`${cleanUrl}/api/units`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -50,8 +50,14 @@ export default function AdminModule({
         },
         body: JSON.stringify({ action, unit })
       });
-    } catch (e) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Lỗi HTTP ${response.status}`;
+        throw new Error(errorMsg);
+      }
+    } catch (e: any) {
       console.error('Lỗi đồng bộ Đơn vị lên Cloudflare D1:', e);
+      alert(`⚠️ LỖI ĐỒNG BỘ ĐƠN VỊ LÊN CLOUDFLARE!\nChi tiết: ${e.message || e}`);
     }
   };
 
@@ -62,7 +68,7 @@ export default function AdminModule({
       if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.slice(0, -1);
       }
-      await fetch(`${cleanUrl}/api/users`, {
+      const response = await fetch(`${cleanUrl}/api/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,8 +76,25 @@ export default function AdminModule({
         },
         body: JSON.stringify({ action, user })
       });
-    } catch (e) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Lỗi HTTP ${response.status}`;
+        throw new Error(errorMsg);
+      }
+    } catch (e: any) {
       console.error('Lỗi đồng bộ Người dùng lên Cloudflare D1:', e);
+      
+      const isMissingColumnError = String(e.message || '').includes('canImportData') || String(e.message || '').includes('no such column');
+      
+      if (isMissingColumnError) {
+        alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG: CHƯA NÂNG CẤP CƠ SỞ DỮ LIỆU CLOUDFLARE D1!\n\n` +
+              `Cơ sở dữ liệu của bạn thiếu cột "canImportData". Để phân quyền upload, vui lòng chạy câu lệnh SQL nâng cấp dưới đây trong trang quản trị Cloudflare D1 của bạn:\n\n` +
+              `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n\n` +
+              `Chi tiết lỗi hệ thống: ${e.message}`);
+      } else {
+        alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG LÊN CLOUDFLARE!\n` +
+              `Chi tiết: ${e.message || e}`);
+      }
     }
   };
 
