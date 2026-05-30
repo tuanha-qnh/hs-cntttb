@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, Search, BarChart3, Cloud, LogOut, Key, CheckCircle, 
-  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save, Upload
+  HelpCircle, User as UserIcon, Lock, Menu, X, Landmark, RefreshCw, Save, Upload, Plus
 } from 'lucide-react';
 
 import { Unit, User, SubscriberRecord, CloudflareConfig } from './types';
@@ -210,6 +210,30 @@ export default function App() {
   // Navigation Panel Views
   const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'guide' | 'admin' | 'import_data'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Mobile Adaption States
+  const [isMobileMode, setIsMobileMode] = useState(false);
+  const [overrideMobile, setOverrideMobile] = useState<boolean | null>(null);
+  const [showBottomMoreMenu, setShowBottomMoreMenu] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 1024;
+      const detectedIsMobile = isMobileUA || isSmallScreen;
+
+      if (overrideMobile === null) {
+        setIsMobileMode(detectedIsMobile);
+      } else {
+        setIsMobileMode(overrideMobile);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [overrideMobile]);
 
   // Automatically parse setup query parameters on load for device setup
   useEffect(() => {
@@ -1192,37 +1216,58 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#005BAA]/10 selection:text-[#005BAA]">
       {/* Navbar Banner top heading */}
-      <header className="bg-white border-b border-slate-200/80 shrink-0 sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-4">
+      <header className={`bg-white border-b border-slate-200/80 shrink-0 sticky top-0 z-40 flex items-center justify-between shadow-xs transition-all ${
+        isMobileMode ? 'px-4 py-2.5' : 'px-6 py-3.5'
+      }`}>
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors lg:hidden cursor-pointer"
+            className={`p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors lg:hidden cursor-pointer ${
+              isMobileMode ? 'hidden' : ''
+            }`}
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="bg-[#005BAA] p-2 rounded-xl text-white shadow-sm shadow-[#005BAA]/20">
-              <Building2 className="w-5 h-5" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className={`bg-[#005BAA] rounded-xl text-white shadow-sm shadow-[#005BAA]/20 transition-all ${
+              isMobileMode ? 'p-1.5' : 'p-2'
+            }`}>
+              <Building2 className={isMobileMode ? 'w-4 h-4' : 'w-5 h-5'} />
             </div>
             <div>
-              <h1 className="text-xs font-extrabold uppercase tracking-widest text-slate-900 font-sans leading-none flex items-center gap-2">
-                HỒ SƠ TTTB VINAPHONE
-                {cloudflareConfig.enabled && (
+              <h1 className={`${isMobileMode ? 'text-[10px]' : 'text-xs'} font-extrabold uppercase tracking-widest text-[#005BAA] font-sans leading-none flex items-center gap-1.5`}>
+                {isMobileMode ? 'HỒ SƠ VNP' : 'HỒ SƠ TTTB VINAPHONE'}
+                {cloudflareConfig.enabled && !isMobileMode && (
                   <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 border border-cyan-200 text-[8px] font-bold rounded-md font-mono uppercase">
                     CLOUD SYNC D1+R2
                   </span>
                 )}
               </h1>
-              <span className="text-[10px] text-slate-400 font-sans font-medium mt-1 block">
-                Tổng Công Ty Dịch Vụ Viễn Thông VNPT - Văn Phòng Quảng Ninh
+              <span className="text-[9px] text-slate-400 font-sans font-medium mt-0.5 block truncate max-w-[190px]">
+                {isMobileMode ? 'VNPT Quảng Ninh' : 'Tổng Công Ty Dịch Vụ Viễn Thông VNPT - Văn Phòng Quảng Ninh'}
               </span>
             </div>
           </div>
         </div>
 
         {/* User Active Information Panel at top right */}
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden sm:block border-r border-slate-200 pr-4">
+        <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+          {/* Quick Platform View Mode Selector Button with ping indicators */}
+          <button
+            type="button"
+            onClick={() => setOverrideMobile(isMobileMode ? false : true)}
+            className={`px-2 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold font-sans transition-all active:scale-95 border cursor-pointer flex items-center gap-1 shrink-0 ${
+              isMobileMode 
+                ? 'bg-blue-50 text-[#005BAA] border-blue-200 hover:bg-blue-100/50' 
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-655 border-slate-200'
+            }`}
+            title="Chuyển đổi Bản PC / Bản Điện thoại"
+          >
+            <span>{isMobileMode ? '📱 Mobile' : '💻 Bản PC'}</span>
+            {isMobileMode && <div className="w-1.5 h-1.5 rounded-full bg-[#005BAA] animate-pulse" />}
+          </button>
+
+          <div className="text-right hidden sm:block border-r border-slate-200 pr-4 shrink-0">
             <h4 className="text-xs font-bold text-slate-800 font-sans flex items-center gap-1.5 justify-end">
               <UserIcon className="w-3.5 h-3.5 text-[#005BAA]" />
               {currentUser.fullName}
@@ -1234,7 +1279,9 @@ export default function App() {
 
           <button
             onClick={() => setIsSelfPasswordModalOpen(true)}
-            className="px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-all cursor-pointer border border-indigo-100 active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+            className={`px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 transition-all cursor-pointer active:scale-95 flex items-center gap-1 text-[11px] font-bold shrink-0 ${
+              isMobileMode ? 'bg-transparent border-0 hover:bg-slate-50 !p-1.5 text-slate-550' : ''
+            }`}
             title="Đổi mật khẩu tài khoản"
           >
             <Key className="w-3.5 h-3.5" />
@@ -1243,10 +1290,10 @@ export default function App() {
 
           <button
             onClick={handleLogout}
-            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100/80 transition-all cursor-pointer border border-red-100 active:scale-95"
+            className="p-1.5 sm:p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100/80 border border-red-100 transition-all cursor-pointer active:scale-95 shrink-0"
             title="Đăng xuất khỏi hệ thống"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </header>
@@ -1256,7 +1303,7 @@ export default function App() {
         {/* Sidebar Left Navigation Panel */}
         <aside
           className={`bg-slate-900 border-r border-slate-800 text-white transition-all shrink-0 z-30 flex flex-col duration-200 ${
-            sidebarOpen ? 'w-64' : 'w-0 lg:w-20 overflow-hidden'
+            isMobileMode ? 'hidden' : sidebarOpen ? 'w-64' : 'w-0 lg:w-20 overflow-hidden'
           }`}
         >
           <div className="flex-1 py-5 flex flex-col justify-between">
@@ -1373,11 +1420,15 @@ export default function App() {
         </aside>
 
         {/* Content Workspace Area scrollable */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
+        <main className={`flex-1 overflow-y-auto bg-slate-50/50 transition-all ${
+          isMobileMode ? 'p-4 pb-28 md:p-8' : 'p-6 md:p-8'
+        }`}>
           {/* Main workspace header banner label */}
-          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
+          <div className={`mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/80 pb-4 ${
+            isMobileMode ? 'mt-1' : ''
+          }`}>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 uppercase font-sans tracking-wide">
+              <h2 className={`${isMobileMode ? 'text-xs' : 'text-lg'} font-black text-[#005BAA] uppercase font-sans tracking-wide`}>
                 {currentTab === 'stats' && 'BÁO CÁO THỐNG KÊ HOẠT ĐỘNG'}
                 {currentTab === 'entry' && 'NHẬP LIỆU CẬP NHẬT THÔNG TIN THUÊ BAO'}
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
@@ -1386,23 +1437,27 @@ export default function App() {
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
                 {currentTab === 'import_data' && 'UPLOAD & IMPORT DỮ LIỆU CSDL D1'}
               </h2>
-              <p className="text-xs text-slate-500 font-sans mt-0.5">
-                {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
-                {currentTab === 'entry' && 'Đăng biên nhận, điền thông tin và kéo thả phiếu yêu cầu cập nhật lên CDN.'}
-                {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng từ kho bản scan.'}
-                {currentTab === 'db_lookup' && 'Tra cứu toàn bộ trạng thái chuẩn hóa, dải số mục tiêu và kết quả thực hiện TTTB.'}
-                {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
-                {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
-                {currentTab === 'import_data' && 'Đồng bộ tải lên danh sách thuê bao mục tiêu cần hoàn thiện và kết quả cập nhật.'}
-              </p>
+              {!isMobileMode && (
+                <p className="text-xs text-slate-500 font-sans mt-0.5">
+                  {currentTab === 'stats' && 'Biểu đồ hoạt động và phân rã khối lượng giấy tờ của các điểm bán hàng.'}
+                  {currentTab === 'entry' && 'Đăng biên nhận, điền thông tin và kéo thả phiếu yêu cầu cập nhật lên CDN.'}
+                  {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng từ kho bản scan.'}
+                  {currentTab === 'db_lookup' && 'Tra cứu toàn bộ trạng thái chuẩn hóa, dải số mục tiêu và kết quả thực hiện TTTB.'}
+                  {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
+                  {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
+                  {currentTab === 'import_data' && 'Đồng bộ tải lên danh sách thuê bao mục tiêu cần hoàn thiện và kết quả cập nhật.'}
+                </p>
+              )}
             </div>
 
             {/* Top helper synchronization indicators warnings */}
             {!cloudflareConfig.enabled && (
-              <div className="text-right text-xs bg-amber-50 border border-amber-200/70 text-amber-800 rounded-xl px-4 py-2.5 max-w-sm flex items-center gap-2">
+              <div className={`text-right text-xs bg-amber-50 border border-amber-200/70 text-amber-800 rounded-xl max-w-sm flex items-center gap-2 ${
+                isMobileMode ? 'px-3 py-2 text-[10px]' : 'px-4 py-2.5'
+              }`}>
                 <HelpCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="font-sans leading-tight text-[11px]">
-                  Chế độ <b>Mô phỏng Ngoại tuyến (Offline)</b>. Thiết lập hạ tầng Cloudflare D1 & R2 ở mục quản trị để kết nối online.
+                <span className="font-sans leading-tight">
+                  Chế độ <b>Mô phỏng (Offline)</b>.
                 </span>
               </div>
             )}
@@ -1460,15 +1515,210 @@ export default function App() {
       </div>
 
       {/* Persistent global footer credits */}
-      <footer className="bg-white border-t border-slate-200 py-3.5 px-6 text-center text-[10px] text-slate-400 font-sans flex flex-col md:flex-row items-center justify-between gap-2 shrink-0">
-        <div>
-          Bản quyền © 2026 <strong>VNPT Quảng Ninh</strong>. Thiết kế chuẩn Responsive đa phương diện.
+      {!isMobileMode && (
+        <footer className="bg-white border-t border-slate-200 py-3.5 px-6 text-center text-[10px] text-slate-400 font-sans flex flex-col md:flex-row items-center justify-between gap-2 shrink-0">
+          <div>
+            Bản quyền © 2026 <strong>VNPT Quảng Ninh</strong>. Thiết kế chuẩn Responsive đa phương diện.
+          </div>
+          <div className="flex items-center gap-4">
+            <span>Kênh hỗ trợ nghiệp vụ: Tổng đài 18001091</span>
+            <span>Phiên bản: 1.0.8 Cloudflare-Integrated</span>
+          </div>
+        </footer>
+      )}
+
+      {/* Mobile Bottom Navigation Bar */}
+      {isMobileMode && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-800 p-2.5 flex justify-around items-center h-[66px] rounded-t-2xl shadow-2xl">
+          {/* Stats Tab */}
+          <button
+            onClick={() => { setCurrentTab('stats'); setShowBottomMoreMenu(false); }}
+            className={`flex flex-col items-center justify-center gap-1 bg-transparent border-0 cursor-pointer transition-all ${
+              currentTab === 'stats' ? 'text-sky-400 font-extrabold scale-105' : 'text-slate-400'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5 text-indigo-400" />
+            <span className="text-[9px] tracking-tight">Thống kê</span>
+          </button>
+
+          {/* Lookup Tab */}
+          <button
+            onClick={() => { setCurrentTab('lookup'); setShowBottomMoreMenu(false); }}
+            className={`flex flex-col items-center justify-center gap-1 bg-transparent border-0 cursor-pointer transition-all ${
+              currentTab === 'lookup' ? 'text-sky-400 font-extrabold scale-105' : 'text-slate-400'
+            }`}
+          >
+            <Search className="w-5 h-5 text-sky-400" />
+            <span className="text-[9px] tracking-tight">Kho hồ sơ</span>
+          </button>
+
+          {/* Entry Tab (Centered focal point button with nice icon and background) */}
+          <button
+            onClick={() => { setCurrentTab('entry'); setShowBottomMoreMenu(false); }}
+            className={`flex flex-col items-center justify-center bg-transparent border-0 cursor-pointer transition-all relative -top-4 w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 active:scale-95 ${
+              currentTab === 'entry' ? 'ring-4 ring-cyan-400/30' : ''
+            }`}
+            title="Tạo mới/Cập nhật bộ hồ sơ thuê bao"
+          >
+            <Plus className="w-6 h-6 text-white" />
+          </button>
+
+          {/* DB Lookup Tab */}
+          <button
+            onClick={() => { setCurrentTab('db_lookup'); setShowBottomMoreMenu(false); }}
+            className={`flex flex-col items-center justify-center gap-1 bg-transparent border-0 cursor-pointer transition-all ${
+              currentTab === 'db_lookup' ? 'text-sky-400 font-extrabold scale-105' : 'text-slate-400'
+            }`}
+          >
+            <CheckCircle className="w-5 h-5 text-emerald-450" />
+            <span className="text-[9px] tracking-tight">CSDL D1</span>
+          </button>
+
+          {/* More Drawer helper Tab */}
+          <button
+            onClick={() => setShowBottomMoreMenu(!showBottomMoreMenu)}
+            className={`flex flex-col items-center justify-center gap-1 bg-transparent border-0 cursor-pointer transition-all ${
+              showBottomMoreMenu ? 'text-sky-400 font-extrabold scale-105' : 'text-slate-400'
+            }`}
+          >
+            <Menu className="w-5 h-5 text-amber-400" />
+            <span className="text-[9px] tracking-tight">Tiện ích</span>
+          </button>
         </div>
-        <div className="flex items-center gap-4">
-          <span>Kênh hỗ trợ nghiệp vụ: Tổng đài 18001091</span>
-          <span>Phiên bản: 1.0.8 Cloudflare-Integrated</span>
+      )}
+
+      {/* Bottom More Menu Sheet Drawer Component */}
+      {isMobileMode && showBottomMoreMenu && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end justify-center">
+          {/* Overlay click to exit */}
+          <div 
+            className="absolute inset-0 cursor-pointer" 
+            onClick={() => setShowBottomMoreMenu(false)}
+          />
+
+          {/* Content panel */}
+          <div className="bg-white w-full rounded-t-3xl border-t border-slate-200 overflow-hidden shadow-2xl relative z-10 max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-200 pb-8">
+            {/* Design handle indicator bar */}
+            <div className="flex items-center justify-center py-3">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
+
+            <div className="px-5 pb-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-extrabold uppercase text-[#005BAA] tracking-wider font-sans">
+                  Danh mục Nghiệp vụ & Tiện ích
+                </h4>
+                <p className="text-[9px] text-slate-400 font-sans">Username: <strong className="font-mono">{currentUser.username}</strong></p>
+              </div>
+              <button 
+                onClick={() => setShowBottomMoreMenu(false)}
+                className="p-1 rounded-full bg-slate-150 hover:bg-slate-200 text-slate-500 cursor-pointer border-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto grid grid-cols-2 gap-4 pb-12">
+              <button
+                onClick={() => { setCurrentTab('stats'); setShowBottomMoreMenu(false); }}
+                className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                  currentTab === 'stats' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-750'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5 text-indigo-500" />
+                <span className="text-[11px] font-bold">Thống kê chung</span>
+              </button>
+
+              <button
+                onClick={() => { setCurrentTab('entry'); setShowBottomMoreMenu(false); }}
+                className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                  currentTab === 'entry' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-750'
+                }`}
+              >
+                <FileText className="w-5 h-5 text-sky-500" />
+                <span className="text-[11px] font-bold">Cập nhật TTTB</span>
+              </button>
+
+              <button
+                onClick={() => { setCurrentTab('lookup'); setShowBottomMoreMenu(false); }}
+                className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                  currentTab === 'lookup' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                }`}
+              >
+                <Search className="w-5 h-5 text-emerald-500" />
+                <span className="text-[11px] font-bold">Tìm kiếm hồ sơ</span>
+              </button>
+
+              <button
+                onClick={() => { setCurrentTab('db_lookup'); setShowBottomMoreMenu(false); }}
+                className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                  currentTab === 'db_lookup' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                }`}
+              >
+                <CheckCircle className="w-5 h-5 text-amber-500" />
+                <span className="text-[11px] font-bold">Tìm kiếm dải số D1</span>
+              </button>
+
+              {/* Data sync if Admin or has permission */}
+              {(currentUser.role === 'Admin' || currentUser.canImportData) && (
+                <button
+                  onClick={() => { setCurrentTab('import_data'); setShowBottomMoreMenu(false); }}
+                  className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                    currentTab === 'import_data' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                  }`}
+                >
+                  <Upload className="w-5 h-5 text-blue-500" />
+                  <span className="text-[11px] font-bold">Upload Excel D1</span>
+                </button>
+              )}
+
+              {/* Guide Handbook - if Admin */}
+              {currentUser?.username === 'admin' && (
+                <button
+                  onClick={() => { setCurrentTab('guide'); setShowBottomMoreMenu(false); }}
+                  className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                    currentTab === 'guide' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                  }`}
+                >
+                  <Cloud className="w-5 h-5 text-cyan-500" />
+                  <span className="text-[11px] font-bold">Cẩm nang chỉ việc</span>
+                </button>
+              )}
+
+              {/* Core System Settings / Admin */}
+              {currentUser.role === 'Admin' && (
+                <button
+                  onClick={() => { setCurrentTab('admin'); setShowBottomMoreMenu(false); }}
+                  className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all col-span-2 ${
+                    currentTab === 'admin' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                  }`}
+                >
+                  <Users className="w-5 h-5 text-rose-500" />
+                  <span className="text-[11px] font-bold">Cài đặt Admin hệ thống</span>
+                </button>
+              )}
+
+              {/* Self change password */}
+              <button
+                onClick={() => { setIsSelfPasswordModalOpen(true); setShowBottomMoreMenu(false); }}
+                className="p-4 rounded-xl text-center border border-slate-100 text-slate-755 font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all"
+              >
+                <Key className="w-5 h-5 text-amber-500" />
+                <span className="text-[11px] font-bold">Đổi mật khẩu</span>
+              </button>
+
+              {/* Log out */}
+              <button
+                onClick={() => { handleLogout(); setShowBottomMoreMenu(false); }}
+                className="p-4 rounded-xl text-center border border-red-100 bg-red-50/5 text-red-700 font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-red-50 transition-all"
+              >
+                <LogOut className="w-5 h-5 text-red-500" />
+                <span className="text-[11px] font-bold">Đăng xuất</span>
+              </button>
+            </div>
+          </div>
         </div>
-      </footer>
+      )}
 
       {/* Self Password Change Modal */}
       {isSelfPasswordModalOpen && (

@@ -82,7 +82,61 @@ export default function SubscriberLookupModule({ records }: Props) {
 
         {/* Main Grid View */}
         <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
+          {/* Card Mobile List View */}
+          <div className="block md:hidden divide-y divide-slate-100">
+            {paginatedData.length > 0 ? (
+              paginatedData.map((record, index) => (
+                <div key={record.id} className="p-4 space-y-3 hover:bg-slate-50/40 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      #{String(startIndex + index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {formatDate(record.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-bold text-[#005BAA] font-mono tracking-wide">
+                        {record.phoneNumber}
+                      </h4>
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-tight">
+                        {record.fullName}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedRecord(record)}
+                      className="px-2.5 py-1.5 rounded-lg bg-[#005BAA]/5 text-[#005BAA] border border-blue-105 active:bg-[#005BAA] active:text-white transition-all text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Chi tiết
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-2 border-t border-slate-100 text-slate-500">
+                    <div>
+                      <span className="text-slate-450 text-[9px] uppercase tracking-wider block font-bold">Số CCCD / Hộ chiếu</span>
+                      <span className="font-mono font-bold text-slate-700">{record.idNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-450 text-[9px] uppercase tracking-wider block font-bold">Đơn vị tiếp nhận</span>
+                      <span className="font-sans font-medium text-slate-750 block truncate" title={record.unitName}>
+                        {record.unitName || 'VNPT Quảng Ninh'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 text-slate-400 font-sans font-medium text-xs font-medium">
+                Không tìm thấy dữ liệu hồ sơ phù hợp.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-200/80 text-slate-500 text-[10px] font-bold uppercase font-sans tracking-wider">
