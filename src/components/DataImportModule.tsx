@@ -134,18 +134,24 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
         const mappedRecords: any[] = [];
 
         if (activeImportType === 'muctieu') {
-          // Fields: So_thue_bao (SĐT), Tap_thue_bao
+          // Fields: So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi
           for (const row of rawRows) {
             const phoneKey = findKey(row, ['so_thue_bao', 'so_dien_thoai', 'phoneNumber', 'sdt', 'so thue bao']);
             const groupKey = findKey(row, ['tap_thue_bao', 'tap', 'group', 'category', 'tap thue bao']);
+            const unitCodeKey = findKey(row, ['ma_donvi', 'ma_dv', 'unitid', 'ma_don_vi', 'ma don vi', 'ma dv', 'madonvi']);
+            const unitNameKey = findKey(row, ['ten_donvi', 'ten_dv', 'unitname', 'ten_don_vi', 'ten don vi', 'ten dv', 'don vi', 'don_vi', 'tendonvi']);
 
             const sdt = phoneKey ? String(row[phoneKey]).trim() : '';
             const tap = groupKey ? String(row[groupKey]).trim() : 'Mặc định';
+            const ma_dv = unitCodeKey ? String(row[unitCodeKey]).trim() : '';
+            const ten_dv = unitNameKey ? String(row[unitNameKey]).trim() : '';
 
             if (sdt) {
               mappedRecords.push({
                 So_thue_bao: sdt,
                 Tap_thue_bao: tap,
+                Ma_donvi: ma_dv,
+                Ten_donvi: ten_dv,
               });
             }
           }
@@ -294,7 +300,7 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
             <h4 className="text-xs font-bold text-slate-900 uppercase">Tập thuê bao mục tiêu</h4>
             <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
               Bảng dữ liệu: <b>DS_TB_MUCTIEU</b>.<br />
-              Cấu trúc: <b>So_thue_bao (SĐT), Tap_thue_bao</b>.
+              Cấu trúc: <b>So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi</b>.
             </p>
           </div>
         </button>

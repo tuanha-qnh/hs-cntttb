@@ -12,6 +12,8 @@ import {
 interface UnifiedRecord {
   So_thue_bao: string;
   Tap_thue_bao: string;
+  Ma_donvi?: string | null;
+  Ten_donvi?: string | null;
   IsUpdated: boolean;
   User_capnhat?: string | null;
   Ma_hrm_CN?: string | null;
@@ -173,7 +175,7 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
     
     // CSV Header row
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // Add BOM for Vietnamese characters
-    csvContent += "STT,Số thuê bao,Tập thuê bao,Trạng thái TTTB,Cập nhật bởi,Mã HRM,Kênh cập nhật,Ngày hoàn thành\n";
+    csvContent += "STT,Số thuê bao,Tập thuê bao,Mã đơn vị mục tiêu,Tên đơn vị chỉ tiêu,Trạng thái TTTB,Cập nhật bởi,Mã HRM,Kênh cập nhật,Ngày hoàn thành\n";
     
     filteredRecords.forEach((r, idx) => {
       const statusStr = r.IsUpdated ? "ĐÃ HOÀN THÀNH" : "CHƯA CẬP NHẬT";
@@ -181,11 +183,15 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
       const hrm = r.Ma_hrm_CN || "";
       const kenh = r.Kenh_CN || "";
       const ngay = r.Ngay_CN || "";
+      const ma_dv = r.Ma_donvi || "";
+      const ten_dv = r.Ten_donvi || "";
       
       const row = [
         idx + 1,
         `"${r.So_thue_bao}"`,
         `"${r.Tap_thue_bao}"`,
+        `"${ma_dv}"`,
+        `"${ten_dv}"`,
         `"${statusStr}"`,
         `"${user}"`,
         `"${hrm}"`,
@@ -328,11 +334,29 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
 
               {lookupResult.found ? (
                 <div className="space-y-3 text-xs text-slate-700 font-sans">
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-150">
-                    <span className="text-[10px] uppercase tracking-wider text-slate-404 font-black block">Phần phân tập chỉ tiêu</span>
-                    <p className="font-bold text-slate-800 text-xs mt-1 leading-relaxed">
-                      {lookupResult.Tap_thue_bao}
-                    </p>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-150 space-y-2.5">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-slate-404 font-black block">Phần phân tập chỉ tiêu</span>
+                      <p className="font-bold text-slate-800 text-xs mt-0.5 leading-relaxed">
+                        {lookupResult.Tap_thue_bao}
+                      </p>
+                    </div>
+                    {(lookupResult.Ma_donvi || lookupResult.Ten_donvi) && (
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                        {lookupResult.Ma_donvi && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Mã đơn vị chỉ tiêu</span>
+                            <p className="font-mono font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Ma_donvi}</p>
+                          </div>
+                        )}
+                        {lookupResult.Ten_donvi && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Tên đơn vị phụ trách</span>
+                            <p className="font-sans font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Ten_donvi}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {lookupResult.IsUpdated ? (

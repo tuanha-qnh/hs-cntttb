@@ -69,7 +69,9 @@ CREATE INDEX IF NOT EXISTS idx_subscribers_name ON subscribers(fullName);
 -- 4. TẠO BẢNG TẬP THUÊ BAO MỤC TIÊU CSDL D1
 CREATE TABLE IF NOT EXISTS DS_TB_MUCTIEU (
   So_thue_bao TEXT PRIMARY KEY,
-  Tap_thue_bao TEXT NOT NULL
+  Tap_thue_bao TEXT NOT NULL,
+  Ma_donvi TEXT,
+  Ten_donvi TEXT
 );
 
 -- 5. TẠO BẢNG KẾT QUẢ CẬP NHẬT TTTB CSDL D1
@@ -345,10 +347,12 @@ export default {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
+          const ma_dv = String(item.Ma_donvi || "").trim();
+          const ten_dv = String(item.Ten_donvi || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
-            ).bind(sdt, tap)
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao, Ma_donvi = excluded.Ma_donvi, Ten_donvi = excluded.Ten_donvi"
+            ).bind(sdt, tap, ma_dv, ten_dv)
           );
         }
 
@@ -799,10 +803,12 @@ export default {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
+          const ma_dv = String(item.Ma_donvi || "").trim();
+          const ten_dv = String(item.Ten_donvi || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao) VALUES (?1, ?2) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao"
-            ).bind(sdt, tap)
+              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao, Ma_donvi = excluded.Ma_donvi, Ten_donvi = excluded.Ten_donvi"
+            ).bind(sdt, tap, ma_dv, ten_dv)
           );
         }
 
@@ -1161,7 +1167,9 @@ CREATE TABLE KQ_CNTTTB (
 DROP TABLE IF EXISTS DS_TB_MUCTIEU;
 CREATE TABLE DS_TB_MUCTIEU (
   So_thue_bao TEXT PRIMARY KEY,
-  Tap_thue_bao TEXT NOT NULL
+  Tap_thue_bao TEXT NOT NULL,
+  Ma_donvi TEXT,
+  Ten_donvi TEXT
 );
 
 DROP TABLE IF EXISTS subscribers;

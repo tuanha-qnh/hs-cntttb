@@ -25,7 +25,12 @@ async function startServer() {
   const DATABASE_FILE = path.join(process.cwd(), "d1_database.json");
 
   interface D1Database {
-    DS_TB_MUCTIEU: Array<{ So_thue_bao: string; Tap_thue_bao: string }>;
+    DS_TB_MUCTIEU: Array<{ 
+      So_thue_bao: string; 
+      Tap_thue_bao: string;
+      Ma_donvi?: string;
+      Ten_donvi?: string;
+    }>;
     KQ_CNTTTB: Array<{
       so_thue_bao: string;
       User_capnhat: string;
@@ -106,6 +111,8 @@ async function startServer() {
         synchronized: didSync,
         So_thue_bao: phone,
         Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
+        Ma_donvi: mucTieuRecord ? mucTieuRecord.Ma_donvi : null,
+        Ten_donvi: mucTieuRecord ? mucTieuRecord.Ten_donvi : null,
         IsUpdated: !!ketQuaRecord,
         User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
         Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
@@ -145,6 +152,8 @@ async function startServer() {
         unified.push({
           So_thue_bao: phone,
           Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+          Ma_donvi: item.Ma_donvi || null,
+          Ten_donvi: item.Ten_donvi || null,
           IsUpdated: !!kq,
           User_capnhat: kq ? kq.User_capnhat : null,
           Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -204,11 +213,15 @@ async function startServer() {
 
         if (existingIndex !== -1) {
           database.DS_TB_MUCTIEU[existingIndex].Tap_thue_bao = (item.Tap_thue_bao || "Mặc định").trim();
+          database.DS_TB_MUCTIEU[existingIndex].Ma_donvi = (item.Ma_donvi || "").trim();
+          database.DS_TB_MUCTIEU[existingIndex].Ten_donvi = (item.Ten_donvi || "").trim();
           updatedCount++;
         } else {
           database.DS_TB_MUCTIEU.push({
             So_thue_bao: cleanPhone,
-            Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim()
+            Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim(),
+            Ma_donvi: (item.Ma_donvi || "").trim(),
+            Ten_donvi: (item.Ten_donvi || "").trim(),
           });
           insertedCount++;
         }
