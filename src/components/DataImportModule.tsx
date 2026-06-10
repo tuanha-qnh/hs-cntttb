@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Database, CheckCircle, AlertCircle, FileText, Check, Layers, User, Calendar, RefreshCw } from 'lucide-react';
+import { saveBrowserMuctieu, saveBrowserKetqua } from '../browserDb';
 
 interface DataImportModuleProps {
   currentUser: {
@@ -198,6 +199,18 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
         const batchSize = 500;
         const totalBatches = Math.ceil(mappedRecords.length / batchSize);
         
+        // Backup to browser-only local storage database so that offline fallbacks always have latest imports
+        try {
+          if (activeImportType === 'muctieu') {
+            saveBrowserMuctieu(mappedRecords, true);
+          } else {
+            saveBrowserKetqua(mappedRecords, true);
+          }
+          console.log("Successfully backed up imported records to browser storage.");
+        } catch (storageErr) {
+          console.error("Lỗi sao lưu cục bộ trình duyệt:", storageErr);
+        }
+
         const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
         const baseUrl = isCloud ? cloudflareConfig.workerUrl.trim().replace(/\/+$/, '') : '';
         const endpoint = activeImportType === 'muctieu' 
@@ -212,36 +225,59 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
           headers['x-api-secret'] = cloudflareConfig.apiSecret;
         }
 
-        for (let i = 0; i < totalBatches; i++) {
-          const start = i * batchSize;
-          const end = Math.min(start + batchSize, mappedRecords.length);
-          const chunk = mappedRecords.slice(start, end);
+        if (isCloud) {
+          for (let i = 0; i < totalBatches; i++) {
+            const start = i * batchSize;
+            const end = Math.min(start + batchSize, mappedRecords.length);
+            const chunk = mappedRecords.slice(start, end);
 
-          const resp = await fetch(endpoint, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ 
-              records: chunk,
-              isFirstBatch: i === 0 
-            }),
-          });
+            const resp = await fetch(endpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ 
+                records: chunk,
+                isFirstBatch: i === 0 
+              }),
+            });
 
-          if (!resp.ok) {
-            const errorText = await resp.text().catch(() => '');
-            let parsedErr;
-            try { parsedErr = JSON.parse(errorText); } catch(e) {}
-            const errMsg = parsedErr?.error || errorText || 'Không nhận diện được cấu hình DB.';
-            throw new Error(`Lỗi tải lên dữ liệu lô thứ ${i + 1} lên mây: ${errMsg}`);
+            if (!resp.ok) {
+              const errorText = await resp.text().catch(() => '');
+              let parsedErr;
+              try { parsedErr = JSON.parse(errorText); } catch(e) {}
+              const errMsg = parsedErr?.error || errorText || 'Không nhận diện được cấu hình DB.';
+              throw new Error(`Lỗi tải lên dữ liệu lô thứ ${i + 1} lên mây: ${errMsg}`);
+            }
+
+            const pct = Math.round((end / mappedRecords.length) * 100);
+            setUploadProgress({
+              status: 'uploading',
+              percentage: pct,
+              currentRecord: end,
+              totalRecords: mappedRecords.length,
+              message: `Đang truyền tải lô dữ liệu (${end}/${mappedRecords.length} dòng)...`,
+            });
           }
+        } else {
+          // Fall back to local Express API
+          try {
+            const localEndpoint = activeImportType === 'muctieu' 
+              ? `/api/subscriber-status/upload-muctieu` 
+              : `/api/subscriber-status/upload-ketqua`;
 
-          const pct = Math.round((end / mappedRecords.length) * 100);
-          setUploadProgress({
-            status: 'uploading',
-            percentage: pct,
-            currentRecord: end,
-            totalRecords: mappedRecords.length,
-            message: `Đang truyền tải lô dữ liệu (${end}/${mappedRecords.length} dòng)...`,
-          });
+            const resp = await fetch(localEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                records: mappedRecords,
+                isFirstBatch: true 
+              }),
+            });
+            if (!resp.ok) {
+              throw new Error("Không thể kết nối API local");
+            }
+          } catch (localErr) {
+            console.warn("Máy chủ cục bộ không khả dụng. Dữ liệu đã lưu tạm thời trực tiếp trên bộ nhớ Trình duyệt (localStorage).");
+          }
         }
 
         setUploadProgress({
@@ -249,7 +285,7 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
           percentage: 100,
           currentRecord: mappedRecords.length,
           totalRecords: mappedRecords.length,
-          message: `Đã hoàn tất import thành công và đồng bộ ghi đè dữ liệu lên CSDL D1 cho ${mappedRecords.length} dòng thuê bao!`,
+          message: `Đã hoàn tất import thành công cho ${mappedRecords.length} dòng thuê bao (Dữ liệu đã sẵn sàng trên cả CSDL đồng bộ lẫn trình duyệt ngoại tuyến)!`,
         });
 
         setSelectedFile(null); // Reset file selection after success

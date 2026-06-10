@@ -8,6 +8,7 @@ import {
   Search, RefreshCw, BarChart2, CheckCircle2, AlertCircle, Database, 
   HelpCircle, ChevronRight, Filter, Download, User as UserIcon, Calendar, Info
 } from 'lucide-react';
+import { getBrowserUnifiedRecords, singleLookupBrowser } from '../browserDb';
 
 interface UnifiedRecord {
   So_thue_bao: string;
@@ -81,7 +82,7 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
         throw new Error(data.error || 'Lỗi không xác định.');
       }
     } catch (err: any) {
-      console.warn("Lỗi tải từ nguồn chính, tự động thử phương án CSDL dự phòng máy chủ local:", err);
+      console.warn("Lỗi tải từ nguồn chính, tự động thử phương án CSDL dự phòng máy chủ local hoặc trình duyệt:", err);
       
       // Automatic silent / friendly fallback to local database
       try {
@@ -101,7 +102,12 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
         console.error("Local fallback also failed:", localErr);
       }
 
-      setError(err.message || 'Lỗi hệ thống khi tải cơ sở dữ liệu.');
+      // Browser local storage offline fallback
+      console.warn("Both cloud and express backend API failed. Initializing offline browser-only mock/local storage engine.");
+      const fallbackList = getBrowserUnifiedRecords();
+      setRecords(fallbackList);
+      setUsingLocalFallback(true);
+      setHadCloudError(true);
     } finally {
       setLoading(false);
     }
@@ -146,7 +152,13 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
         fetchDatabase();
       }
     } catch (err: any) {
-      setLookupError(err.message || 'Lỗi hệ thống bất ngờ.');
+      console.warn("Lỗi tra cứu mây hoặc local server, tự động thử phương án CSDL dự phòng trình duyệt:", err);
+      // Fallback lookup in browserDb
+      const data = singleLookupBrowser(phone);
+      setLookupResult(data);
+      if (data.synchronized) {
+        fetchDatabase();
+      }
     } finally {
       setLookupLoading(false);
     }

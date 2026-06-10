@@ -8,6 +8,7 @@ import {
   BarChart3, CheckCircle2, AlertCircle, RefreshCw, Sliders, Filter, 
   Building2, Target, Download, Grid, Award, HelpCircle, ArrowUpRight, CheckSquare
 } from 'lucide-react';
+import { getBrowserUnifiedRecords } from '../browserDb';
 
 interface UnifiedRecord {
   So_thue_bao: string;
@@ -90,7 +91,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
         throw new Error(data.error || 'Lỗi không xác định.');
       }
     } catch (err: any) {
-      console.warn("Lỗi tải từ nguồn chính, tự động thử phương án CSDL dự phòng máy chủ local:", err);
+      console.warn("Lỗi tải từ nguồn chính, tự động thử phương án CSDL dự phòng máy chủ local hoặc trình duyệt:", err);
       
       // Automatic silent / friendly fallback to local database
       try {
@@ -110,7 +111,13 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
         console.error("Local fallback also failed:", localErr);
       }
 
-      setError(err.message || 'Lỗi hệ thống khi tải báo cáo điều hành.');
+      // Browser local storage offline fallback
+      console.warn("Both cloud and express backend API failed. Initializing offline browser-only mock/local storage engine.");
+      const fallbackList = getBrowserUnifiedRecords();
+      setRecords(fallbackList);
+      setUsingLocalFallback(true);
+      // We set hadCloudError to true to show the warning explanation banner to guide the user
+      setHadCloudError(true);
     } finally {
       setLoading(false);
     }
