@@ -445,6 +445,8 @@ export default {
           unified.push({
             So_thue_bao: sdt,
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+            Ma_donvi: item.Ma_donvi || null,
+            Ten_donvi: item.Ten_donvi || null,
             IsUpdated: !!kq,
             User_capnhat: kq ? kq.User_capnhat : null,
             Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -517,6 +519,8 @@ export default {
           synchronized: didSync,
           So_thue_bao: phone,
           Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
+          Ma_donvi: mucTieuRecord ? (mucTieuRecord as any).Ma_donvi : null,
+          Ten_donvi: mucTieuRecord ? (mucTieuRecord as any).Ten_donvi : null,
           IsUpdated: !!ketQuaRecord,
           User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
           Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
@@ -890,7 +894,7 @@ export default {
           }
         }
         
-        for (const item of muctieuList) {
+         for (const item of muctieuList) {
           const sdt = String(item.So_thue_bao || "").trim();
           if (!sdt) continue;
           const sdtLower = sdt.toLowerCase();
@@ -900,6 +904,8 @@ export default {
           unified.push({
             So_thue_bao: sdt,
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
+            Ma_donvi: item.Ma_donvi || null,
+            Ten_donvi: item.Ten_donvi || null,
             IsUpdated: !!kq,
             User_capnhat: kq ? kq.User_capnhat : null,
             Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -941,7 +947,7 @@ export default {
 
         const cleanPhone = phone.replace(/^(\\+84|84)/, "0");
 
-        const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
+         const mtRes = await env.DB.prepare("SELECT * FROM DS_TB_MUCTIEU WHERE So_thue_bao = ?1 OR So_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
         const kqRes = await env.DB.prepare("SELECT * FROM KQ_CNTTTB WHERE so_thue_bao = ?1 OR so_thue_bao = ?2").bind(cleanPhone, phone).first() as any;
 
         let mucTieuRecord = mtRes || null;
@@ -972,6 +978,8 @@ export default {
           synchronized: didSync,
           So_thue_bao: phone,
           Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
+          Ma_donvi: mucTieuRecord ? mucTieuRecord.Ma_donvi : null,
+          Ten_donvi: mucTieuRecord ? mucTieuRecord.Ten_donvi : null,
           IsUpdated: !!ketQuaRecord,
           User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
           Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
