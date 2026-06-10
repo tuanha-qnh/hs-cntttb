@@ -17,6 +17,7 @@ import AdminModule from './components/AdminModule';
 import InteractiveGuide from './components/InteractiveGuide';
 import DataImportModule from './components/DataImportModule';
 import SubscriberUpdateLookupModule from './components/SubscriberUpdateLookupModule';
+import ExecutiveDashboardModule from './components/ExecutiveDashboardModule';
 
 // ----------------------------------------------------------------------
 // INITIAL MOCK DATABASES FOR TESTING & PRESENTATION out of the box
@@ -208,7 +209,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'guide' | 'admin' | 'import_data'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'exec_dashboard' | 'guide' | 'admin' | 'import_data'>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Mobile Adaption States
@@ -1357,6 +1358,18 @@ export default function App() {
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Kết quả TTTB</span>
               </button>
 
+              <button
+                onClick={() => setCurrentTab('exec_dashboard')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                  currentTab === 'exec_dashboard'
+                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <BarChart3 className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'exec_dashboard' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Dashboard Điều hành</span>
+              </button>
+
               {currentUser?.username === 'admin' && (
                 <button
                   onClick={() => setCurrentTab('guide')}
@@ -1433,6 +1446,7 @@ export default function App() {
                 {currentTab === 'entry' && 'NHẬP LIỆU CẬP NHẬT THÔNG TIN THUÊ BAO'}
                 {currentTab === 'lookup' && 'KHO TRA CỨU HỒ SƠ LƯU TRỮ'}
                 {currentTab === 'db_lookup' && 'TRA CỨU TRẠNG THÁI CSDL D1'}
+                {currentTab === 'exec_dashboard' && 'DASHBOARD ĐIỀU HÀNH CHỈ TIÊU ĐƠN VỊ'}
                 {currentTab === 'guide' && 'HƯỚNG DẪN CẤU HÌNH CLOUDFLARE TOÀN DIỆN'}
                 {currentTab === 'admin' && 'QUẢN TRỊ HẠ TẦNG & TỔ CHỨC ĐƠN VỊ'}
                 {currentTab === 'import_data' && 'UPLOAD & IMPORT DỮ LIỆU CSDL D1'}
@@ -1443,6 +1457,7 @@ export default function App() {
                   {currentTab === 'entry' && 'Đăng biên nhận, điền thông tin và kéo thả phiếu yêu cầu cập nhật lên CDN.'}
                   {currentTab === 'lookup' && 'Tra cứu nhanh số thuê bao chính chủ hoặc giấy tờ CCCD của khách hàng từ kho bản scan.'}
                   {currentTab === 'db_lookup' && 'Tra cứu toàn bộ trạng thái chuẩn hóa, dải số mục tiêu và kết quả thực hiện TTTB.'}
+                  {currentTab === 'exec_dashboard' && 'Báo cáo chi tiết và đánh giá tiến độ thực hiện rà soát thông tin theo 4 nhóm khách hàng mục tiêu.'}
                   {currentTab === 'guide' && 'Quản lý an toàn dữ liệu đầu cuối sử dụng Serverless Cloudflare miễn phí.'}
                   {currentTab === 'admin' && 'Khai báo phòng GD con, nạp danh sách CTV bằng Excel, đổi cấu hình mạng.'}
                   {currentTab === 'import_data' && 'Đồng bộ tải lên danh sách thuê bao mục tiêu cần hoàn thiện và kết quả cập nhật.'}
@@ -1488,6 +1503,10 @@ export default function App() {
 
             {currentTab === 'db_lookup' && (
               <SubscriberUpdateLookupModule cloudflareConfig={cloudflareConfig} />
+            )}
+
+            {currentTab === 'exec_dashboard' && (
+              <ExecutiveDashboardModule cloudflareConfig={cloudflareConfig} />
             )}
 
             {currentTab === 'import_data' && (
@@ -1657,6 +1676,16 @@ export default function App() {
               >
                 <CheckCircle className="w-5 h-5 text-amber-500" />
                 <span className="text-[11px] font-bold">Tìm kiếm dải số D1</span>
+              </button>
+
+              <button
+                onClick={() => { setCurrentTab('exec_dashboard'); setShowBottomMoreMenu(false); }}
+                className={`p-4 rounded-xl text-center border font-sans flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-all ${
+                  currentTab === 'exec_dashboard' ? 'border-[#005BAA] bg-blue-50/25 text-[#005BAA]' : 'border-slate-100 text-slate-755'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5 text-[#005BAA]" />
+                <span className="text-[11px] font-bold">Dashboard Điều hành</span>
               </button>
 
               {/* Data sync if Admin or has permission */}

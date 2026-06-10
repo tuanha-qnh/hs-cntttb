@@ -33,6 +33,8 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
   const [records, setRecords] = useState<UnifiedRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingLocalFallback, setUsingLocalFallback] = useState(false);
+  const [hadCloudError, setHadCloudError] = useState(false);
 
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,8 +52,11 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
   const fetchDatabase = async () => {
     setLoading(true);
     setError(null);
+    setHadCloudError(false);
+    
+    const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
+
     try {
-      const isCloud = cloudflareConfig?.enabled && cloudflareConfig?.workerUrl;
       const baseUrl = isCloud ? cloudflareConfig.workerUrl.trim().replace(/\/+$/, '') : '';
       const endpoint = `${baseUrl}/api/subscriber-status/list`;
 
@@ -71,10 +76,31 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
       const data = await resp.json();
       if (data.success) {
         setRecords(data.records || []);
+        setUsingLocalFallback(false);
       } else {
         throw new Error(data.error || 'Lỗi không xác định.');
       }
     } catch (err: any) {
+      console.warn("Lỗi tải từ nguồn chính, tự động thử phương án CSDL dự phòng máy chủ local:", err);
+      
+      // Automatic silent / friendly fallback to local database
+      try {
+        const localResp = await fetch('/api/subscriber-status/list');
+        if (localResp.ok) {
+          const localData = await localResp.json();
+          if (localData.success) {
+            setRecords(localData.records || []);
+            setUsingLocalFallback(true);
+            if (isCloud) {
+              setHadCloudError(true);
+            }
+            return;
+          }
+        }
+      } catch (localErr: any) {
+        console.error("Local fallback also failed:", localErr);
+      }
+
       setError(err.message || 'Lỗi hệ thống khi tải cơ sở dữ liệu.');
     } finally {
       setLoading(false);
@@ -214,6 +240,22 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
+      {/* CLOUDFLARE FALLBACK EXPLANATIVE BANNER */}
+      {hadCloudError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+          <div className="text-xs font-sans">
+            <h4 className="font-bold text-amber-950 uppercase">Kết nối CSDL Đám mây Worker tạm gián đoạn</h4>
+            <p className="mt-1 font-medium leading-relaxed">
+              Hệ thống đã tự động kích hoạt tính năng <strong className="text-amber-950">Dự phòng dữ liệu Offline (CSDL máy chủ local)</strong> để các tác vụ tra cứu & báo cáo luôn sẵn sàng.
+            </p>
+            <p className="mt-1 text-slate-500 text-[11px]">
+              Vui lòng kiểm tra lại cấu hình kết nối Cloudflare Worker nếu bạn muốn sử dụng đồng bộ đám mây trực tuyến.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* KPI Stats Widgets Banner */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Goal Card completed */}
