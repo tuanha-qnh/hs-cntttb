@@ -327,13 +327,13 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
           <form onSubmit={handlePhoneLookup} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase font-sans tracking-wide block">
-                Số máy VinaPhone cần kiểm tra *
+                Số máy VinaPhone cần kiểm tra (định dạng 8491xxxx) *
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   required
                   type="text"
-                  placeholder="Ví dụ: 0912112233, 84913..."
+                  placeholder="Ví dụ: 84912345678"
                   value={lookupPhone}
                   onChange={(e) => setLookupPhone(e.target.value)}
                   className="w-full text-sm px-4 py-3 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-105 focus:border-[#005BAA] outline-none transition-all font-sans font-bold tracking-widest text-[#005BAA]"
