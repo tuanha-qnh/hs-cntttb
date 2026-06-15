@@ -127,7 +127,21 @@ export function saveBrowserMuctieu(records: any[], isFirstBatch: boolean = true)
       }
     });
 
-    localStorage.setItem(LOCAL_MUCTIEU_KEY, JSON.stringify(current));
+    try {
+      localStorage.setItem(LOCAL_MUCTIEU_KEY, JSON.stringify(current));
+    } catch (storageErr: any) {
+      console.warn("Không gian lưu trữ bộ nhớ Trình duyệt (localStorage) bị đầy. Tiến hành nén dữ liệu ngoại tuyến...");
+      let limit = Math.min(current.length, 2500);
+      while (limit > 20) {
+        try {
+          localStorage.setItem(LOCAL_MUCTIEU_KEY, JSON.stringify(current.slice(0, limit)));
+          console.warn(`Đã lưu tạm một tập dữ liệu rút gọn đại diện gồm ${limit} dòng thuê bao mục tiêu vào bộ nhớ trình duyệt.`);
+          break;
+        } catch (innerErr) {
+          limit = Math.floor(limit * 0.7);
+        }
+      }
+    }
   } catch (e) {
     console.error("Error saving browser muctieu:", e);
   }
@@ -157,7 +171,21 @@ export function saveBrowserKetqua(records: any[], isFirstBatch: boolean = true) 
       }
     });
 
-    localStorage.setItem(LOCAL_KETQUA_KEY, JSON.stringify(current));
+    try {
+      localStorage.setItem(LOCAL_KETQUA_KEY, JSON.stringify(current));
+    } catch (storageErr: any) {
+      console.warn("Không gian lưu trữ bộ nhớ Trình duyệt (localStorage) bị đầy. Tiến hành nén kết quả cập nhật ngoại tuyến...");
+      let limit = Math.min(current.length, 2500);
+      while (limit > 20) {
+        try {
+          localStorage.setItem(LOCAL_KETQUA_KEY, JSON.stringify(current.slice(0, limit)));
+          console.warn(`Đã lưu tạm một tập dữ liệu kết quả rút gọn gồm ${limit} dòng thuê bao vào bộ nhớ trình duyệt.`);
+          break;
+        } catch (innerErr) {
+          limit = Math.floor(limit * 0.7);
+        }
+      }
+    }
   } catch (e) {
     console.error("Error saving browser ketqua:", e);
   }
