@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, CheckCircle2, AlertCircle, RefreshCw, Sliders, Filter, 
-  Building2, Target, Download, Grid, Award, HelpCircle, ArrowUpRight, CheckSquare
+  Building2, Target, Download, Grid, Award, HelpCircle, ArrowUpRight, CheckSquare,
+  Calendar, TrendingUp
 } from 'lucide-react';
 import { getBrowserUnifiedRecords } from '../browserDb';
 
@@ -58,6 +59,10 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   const [minTargetFilter, setMinTargetFilter] = useState<number>(0);
   const [sortField, setSortField] = useState<'name' | 'target' | 'completed' | 'rate'>('rate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Daily view options
+  const [dailyViewMode, setDailyViewMode] = useState<'system' | 'units'>('system');
+  const [selectedDailyUnit, setSelectedDailyUnit] = useState<string>('all');
 
   const fetchDatabase = async () => {
     setLoading(true);
@@ -253,6 +258,128 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   const sortedByRate = [...unitList].filter(u => u.total >= 3).sort((a, b) => b.rate - a.rate);
   const bestPerformingUnits = sortedByRate.filter(u => u.rate >= 75).slice(0, 3);
   const slowPerformingUnits = sortedByRate.filter(u => u.rate < 40).slice(0, 3);
+
+  // -----------------------------------------------------------------
+  // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
+  // -----------------------------------------------------------------
+  const activeUpdatedRecords = records.filter(r => r.IsUpdated);
+  
+  const parseAndNormalizeDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return 'Khác';
+    const trimmed = dateStr.trim();
+    if (trimmed.includes('/')) {
+      const parts = trimmed.split('/');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+      }
+    }
+    // Trích xuất phần YYYY-MM-DD
+    if (trimmed.length > 10) {
+      return trimmed.substring(0, 10);
+    }
+    return trimmed;
+  };
+
+  // Lấy ra tất cả các ngày duy nhất có cập nhật và sắp xếp tăng dần
+  const availableDatesStr: string[] = Array.from(new Set<string>(
+    activeUpdatedRecords
+      .map(r => parseAndNormalizeDate(r.Ngay_CN))
+      .filter((d: string): d is string => d !== 'Khác' && d.match(/^\d{4}-\d{2}-\d{2}$/) !== null)
+  )).sort();
+
+  // Tạo map chứa danh sách đơn vị hiện có
+  const allUniqueUnits = Object.values(unitMap).map(u => ({ code: u.code, name: u.name }));
+
+  // Tạo map lượng cập nhật theo: [unitCode][date] = count
+  const dailyUnitCounts: Record<string, Record<string, number>> = {};
+  allUniqueUnits.forEach(u => {
+    dailyUnitCounts[u.code] = {};
+    availableDatesStr.forEach(d => {
+      dailyUnitCounts[u.code][d] = 0;
+    });
+  });
+
+  // Gom theo tổng hệ thống: [date] = count
+  const dailySystemCounts: Record<string, number> = {};
+  availableDatesStr.forEach(d => {
+    dailySystemCounts[d] = 0;
+  });
+
+  activeUpdatedRecords.forEach(r => {
+    const uCode = (r.Ma_donvi || 'N/A').trim();
+    const dStr = parseAndNormalizeDate(r.Ngay_CN);
+    
+    if (dStr !== 'Khác' && dailySystemCounts[dStr] !== undefined) {
+      dailySystemCounts[dStr]++;
+    }
+    
+    if (dailyUnitCounts[uCode] && dStr !== 'Khác' && dailyUnitCounts[uCode][dStr] !== undefined) {
+      dailyUnitCounts[uCode][dStr]++;
+    }
+  });
+
+  // Tính lũy kế và phát sinh từng ngày của Toàn hệ thống
+  const systemDailyReport = availableDatesStr.map((date, idx) => {
+    let cumulativeToday = 0;
+    for (let i = 0; i <= idx; i++) {
+      cumulativeToday += dailySystemCounts[availableDatesStr[i]];
+    }
+    
+    let cumulativeYesterday = 0;
+    for (let i = 0; i < idx; i++) {
+      cumulativeYesterday += dailySystemCounts[availableDatesStr[i]];
+    }
+
+    const dailyDiff = cumulativeToday - cumulativeYesterday;
+
+    return {
+      date,
+      formattedDate: date.split('-').reverse().join('/'), // DD/MM/YYYY
+      cumulativeYesterday,
+      cumulativeToday,
+      dailyDiff,
+    };
+  });
+
+  // Tính luỹ kế và phát sinh chi tiết cho Đơn vị x Ngày
+  const unitDailyReport: Array<{
+    date: string;
+    formattedDate: string;
+    unitCode: string;
+    unitName: string;
+    cumulativeYesterday: number;
+    cumulativeToday: number;
+    dailyDiff: number;
+  }> = [];
+
+  allUniqueUnits.forEach(unit => {
+    availableDatesStr.forEach((date, idx) => {
+      let cumulativeToday = 0;
+      for (let i = 0; i <= idx; i++) {
+        cumulativeToday += dailyUnitCounts[unit.code][availableDatesStr[i]] || 0;
+      }
+
+      let cumulativeYesterday = 0;
+      for (let i = 0; i < idx; i++) {
+        cumulativeYesterday += dailyUnitCounts[unit.code][availableDatesStr[i]] || 0;
+      }
+
+      const dailyDiff = cumulativeToday - cumulativeYesterday;
+
+      unitDailyReport.push({
+        date,
+        formattedDate: date.split('-').reverse().join('/'),
+        unitCode: unit.code,
+        unitName: unit.name,
+        cumulativeYesterday,
+        cumulativeToday,
+        dailyDiff,
+      });
+    });
+  });
 
   const handleSort = (field: 'name' | 'target' | 'completed' | 'rate') => {
     if (sortField === field) {
@@ -734,6 +861,177 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 Lưu ý: Chỉ xếp hạng đánh giá đối với các đơn vị được giao phó trên 3 chỉ tiêu.
               </div>
             </div>
+          </div>
+
+          {/* DAILY PERFORMANCE ASSESSMENT MODULE */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#005BAA]" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                    Bảng đánh giá kết quả số lượng cập nhật theo Ngày & Đơn vị phụ trách
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Tính toán lượng cập nhật thực tế theo hiệu số của lũy kế hôm nay trừ lũy kế hôm trước (đã bóc tách qua từng đợt import nhiều lần).
+                  </p>
+                </div>
+              </div>
+              
+              {/* Mode toggles */}
+              <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-center">
+                <button
+                  onClick={() => setDailyViewMode('system')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    dailyViewMode === 'system' 
+                      ? 'bg-white text-[#005BAA] shadow-xs' 
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  Toàn hệ thống
+                </button>
+                <button
+                  onClick={() => setDailyViewMode('units')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    dailyViewMode === 'units' 
+                      ? 'bg-white text-[#005BAA] shadow-xs' 
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  Theo từng Đơn vị
+                </button>
+              </div>
+            </div>
+
+            {dailyViewMode === 'system' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse font-sans text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                      <th className="py-2.5 px-4 w-12 text-center">STT</th>
+                      <th className="py-2.5 px-3 text-left">Ngày cập nhật sản lượng</th>
+                      <th className="py-2.5 px-3 text-center">Lũy kế hoàn hoàn thành đến Ngày trước (A)</th>
+                      <th className="py-2.5 px-3 text-center">Lũy kế hoàn thành đến Hôm nay (B)</th>
+                      <th className="py-2.5 px-4 text-center font-bold bg-blue-50/20 text-[#005BAA]">Lượng phát sinh hoàn thành (Hiệu số B - A)</th>
+                      <th className="py-2.5 px-3 text-center">Đánh giá chung</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150/60">
+                    {systemDailyReport.length > 0 ? (
+                      [...systemDailyReport].reverse().map((day, dIdx) => {
+                        const scoreLabel = day.dailyDiff >= 100 ? "Tốc độ Đột phá" : day.dailyDiff >= 20 ? "Tốc độ Ổn định" : "Cần đẩy mạnh";
+                        const scoreColor = day.dailyDiff >= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
+                                           day.dailyDiff >= 20 ? "bg-indigo-50 text-indigo-700 border-indigo-150" :
+                                           "bg-amber-50 text-amber-700 border-amber-150";
+                        return (
+                          <tr key={day.date} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3 px-4 font-mono text-center text-slate-400">{dIdx + 1}</td>
+                            <td className="py-3 px-3 font-semibold text-slate-800 flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 font-bold" />
+                              {day.formattedDate}
+                              {dIdx === 0 && (
+                                <span className="bg-red-100 text-red-800 font-black text-[8px] px-1.5 py-0.5 rounded font-mono tracking-wider animate-pulse">LATEST</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-slate-500 font-medium">{day.cumulativeYesterday}</td>
+                            <td className="py-3 px-3 text-center font-mono text-slate-800 font-bold">{day.cumulativeToday}</td>
+                            <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
+                              <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
+                                <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
+                                +{day.dailyDiff} thuê bao
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`text-[9px] font-black uppercase text-center border px-2 py-0.5 rounded-full ${scoreColor}`}>
+                                {scoreLabel}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400 italic font-sans text-xs">
+                          Chưa ghi nhận số liệu cập nhật dập ngày nào. Hãy hoàn tất nhập thêm dữ liệu cập nhật để hiển thị.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              // Units View Mode
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                  <span className="text-[11px] font-bold text-slate-600 font-sans flex items-center gap-1.5 shrink-0">
+                    <Filter className="w-3.5 h-3.5 text-slate-500" /> Lọc Đơn vị chi tiết:
+                  </span>
+                  <select
+                    value={selectedDailyUnit}
+                    onChange={(e) => setSelectedDailyUnit(e.target.value)}
+                    className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#005BAA] font-sans font-bold text-slate-700 min-w-[220px]"
+                  >
+                    <option value="all">-- Hiển thị tất cả Đơn vị cập nhật --</option>
+                    {allUniqueUnits.map(u => (
+                      <option key={u.code} value={u.code}>
+                        {u.name} ({u.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse font-sans text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                        <th className="py-2.5 px-4 w-12 text-center">STT</th>
+                        <th className="py-2.5 px-3 text-left">Đơn vị chịu trách nhiệm</th>
+                        <th className="py-2.5 px-3 text-left">Ngày đánh giá</th>
+                        <th className="py-2.5 px-3 text-center">Lũy kế ngày trước (A)</th>
+                        <th className="py-2.5 px-3 text-center">Lũy kế ngày hôm nay (B)</th>
+                        <th className="py-2.5 px-4 text-center font-bold bg-blue-50/25 text-[#005BAA]">Đã cập nhật thực tế (Hiệu số B - A)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {unitDailyReport.filter(item => selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit).length > 0 ? (
+                        [...unitDailyReport]
+                          .filter(item => selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit)
+                          .reverse()
+                          .map((row, rIdx) => (
+                            <tr key={`${row.unitCode}-${row.date}`} className="hover:bg-slate-50/40 transition-colors">
+                              <td className="py-2.5 px-4 font-mono text-center text-slate-400">{rIdx + 1}</td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-bold text-slate-800">{row.unitName}</div>
+                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">Mã: {row.unitCode}</div>
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-700 font-mono">{row.formattedDate}</td>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.cumulativeYesterday}</td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-800">{row.cumulativeToday}</td>
+                              <td className="py-2.5 px-4 text-center">
+                                {row.dailyDiff > 0 ? (
+                                  <div className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 bg-emerald-50 text-[11px] px-2.5 py-0.5 rounded-md border border-emerald-100/55">
+                                    +{row.dailyDiff}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-350 font-mono">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400 italic font-sans text-xs">
+                            Không tìm thấy dữ liệu phát sinh cho lựa chọn đơn vị hiện tại.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ADVANCED PERFORMANCE VIEW BY DETAILED TABLE */}
