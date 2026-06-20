@@ -588,7 +588,15 @@ export default function App() {
     }
 
     // Login approval
-    setCurrentUser(matchedUser);
+    const updatedUser: User = {
+      ...matchedUser,
+      isSessionActive: true,
+      lastActiveTime: new Date().toISOString(),
+      loginCountThisMonth: (matchedUser.loginCountThisMonth || 0) + 1,
+    };
+
+    setUsers((prev) => prev.map((u) => u.id === matchedUser.id ? updatedUser : u));
+    setCurrentUser(updatedUser);
     setUsernameInput('');
     setPasswordInput('');
   };
@@ -612,9 +620,18 @@ export default function App() {
       return;
     }
 
+    const updatedUser: User = {
+      ...passwordChangeRequiredUser!,
+      isFirstLogin: false,
+      password: newPassword,
+      isSessionActive: true,
+      lastActiveTime: new Date().toISOString(),
+      loginCountThisMonth: (passwordChangeRequiredUser!.loginCountThisMonth || 0) + 1,
+    };
+
     // Update user profile password index
     const updatedUsers = users.map((u) =>
-      u.id === passwordChangeRequiredUser?.id ? { ...u, isFirstLogin: false, password: newPassword } : u
+      u.id === passwordChangeRequiredUser?.id ? updatedUser : u
     );
 
     setUsers(updatedUsers);
@@ -634,7 +651,7 @@ export default function App() {
           },
           body: JSON.stringify({
             action: 'update',
-            user: { ...passwordChangeRequiredUser, isFirstLogin: false, password: newPassword }
+            user: updatedUser
           })
         });
         if (!response.ok) {
@@ -645,7 +662,7 @@ export default function App() {
       }
     }
 
-    setCurrentUser({ ...passwordChangeRequiredUser!, isFirstLogin: false, password: newPassword });
+    setCurrentUser(updatedUser);
     
     // Clear out
     setPasswordChangeRequiredUser(null);
@@ -727,9 +744,54 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (currentUser) {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === currentUser.id ? { ...u, isSessionActive: false } : u))
+      );
+    }
     setCurrentUser(null);
     setCurrentTab('stats');
   };
+
+  // 10-Minute Automatic Logout on Inactivity (cơ chế bảo mật tự động đăng xuất nếu không tương tác trong vòng 10 phút)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let timeoutId: any;
+
+    const resetTimer = () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      
+      // 10 minutes = 10 * 60 * 1000 ms
+      timeoutId = window.setTimeout(() => {
+        handleLogout();
+        alert('Hệ thống tự động đăng xuất do bạn không tương tác trong vòng 10 phút để đảm bảo bảo mật tài khoản.');
+      }, 10 * 60 * 1000);
+    };
+
+    // User interactions to reset active timer
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
+    // Setup initial timer
+    resetTimer();
+
+    // Register active event listeners
+    activityEvents.forEach((ev) => {
+      window.addEventListener(ev, resetTimer);
+    });
+
+    // Cleanup
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      activityEvents.forEach((ev) => {
+        window.removeEventListener(ev, resetTimer);
+      });
+    };
+  }, [currentUser]);
 
   const handleSyncLocalToCloud = async () => {
     if (!cloudflareConfig.enabled || !cloudflareConfig.workerUrl) {

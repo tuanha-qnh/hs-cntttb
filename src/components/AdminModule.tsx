@@ -7,7 +7,7 @@ import React, { useState, useRef } from 'react';
 import { 
   Building2, Users, Sliders, ChevronRight, ChevronDown, CheckSquare, Plus, Edit2, Trash2, 
   RotateCcw, Download, FileSpreadsheet, Cloud, Save, CheckCircle, AlertTriangle, Play, RefreshCw,
-  Share2, Copy
+  Share2, Copy, Activity, Clock
 } from 'lucide-react';
 import { Unit, User, CloudflareConfig } from '../types';
 
@@ -32,7 +32,7 @@ export default function AdminModule({
   onConfigChange,
   onSyncLocalToCloud
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'units' | 'users' | 'import' | 'cloudflare'>('units');
+  const [activeTab, setActiveTab] = useState<'units' | 'users' | 'sessions' | 'import' | 'cloudflare'>('units');
 
   // --- CLOUDFLARE SYNC FUNCTIONS ---
   const syncUnitToCloud = async (action: 'create' | 'update' | 'delete', unit: Unit) => {
@@ -284,6 +284,10 @@ export default function AdminModule({
 
   const [userSearchText, setUserSearchText] = useState('');
   const [userUnitFilter, setUserUnitFilter] = useState('');
+
+  const [sessionSearchText, setSessionSearchText] = useState('');
+  const [sessionUnitFilter, setSessionUnitFilter] = useState('');
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editUserFullName, setEditUserFullName] = useState('');
@@ -611,6 +615,16 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
         </button>
 
         <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
+            activeTab === 'sessions' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+          Theo dõi Truy cập &amp; Logins
+        </button>
+
+        <button
           onClick={() => setActiveTab('import')}
           className={`px-5 py-3.5 font-bold flex items-center gap-1.5 border-b-2 outline-none cursor-pointer font-sans whitespace-nowrap ${
             activeTab === 'import' ? 'border-[#005BAA] text-[#005BAA] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -908,6 +922,206 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                 );
               })()}
             </div>
+          </div>
+        )}
+
+        {/* TAB SESSIONS: ACCOUNT TRAFFIC MONITORING */}
+        {activeTab === 'sessions' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Header statistics info */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <div className="bg-gradient-to-br from-emerald-50 to-white p-4 rounded-xl border border-emerald-100 shadow-sm flex items-center gap-4">
+                <div className="p-2.5 bg-emerald-100 rounded-lg text-emerald-600 shrink-0">
+                  <Activity className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Đang trực tuyến</p>
+                  <p className="text-xl font-bold font-mono text-emerald-650 leading-tight">
+                    {users.filter(u => u.isSessionActive).length} <span className="text-xs font-normal text-slate-500 font-sans">thành viên</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-[#005BAA]/5 to-white p-4 rounded-xl border border-blue-100 shadow-sm flex items-center gap-4">
+                <div className="p-2.5 bg-[#005BAA]/10 rounded-lg text-[#005BAA] shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Tổng nhân sự hệ thống</p>
+                  <p className="text-xl font-bold font-mono text-slate-800 leading-tight">
+                    {users.length} <span className="text-xs font-normal text-slate-500 font-sans">tài khoản</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-50 to-white p-4 rounded-xl border border-indigo-100 shadow-sm flex items-center gap-4">
+                <div className="p-2.5 bg-indigo-100 rounded-lg text-indigo-600 shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Tổng lượt đăng nhập tháng</p>
+                  <p className="text-xl font-bold font-mono text-indigo-655 leading-tight">
+                    {users.reduce((acc, curr) => acc + (curr.loginCountThisMonth || 0), 0)} <span className="text-xs font-normal text-slate-500 font-sans">lượt</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and search tool */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-slate-500 font-sans">Tìm kiếm tài khoản / họ tên</label>
+                <input
+                  type="text"
+                  placeholder="Nhập tên đăng nhập hoặc họ tên nhân viên..."
+                  value={sessionSearchText}
+                  onChange={(e) => setSessionSearchText(e.target.value)}
+                  className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-slate-500 font-sans">Đơn vị / Phòng ban</label>
+                <select
+                  value={sessionUnitFilter}
+                  onChange={(e) => setSessionUnitFilter(e.target.value)}
+                  className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                >
+                  <option value="">-- Tất cả bộ phận --</option>
+                  {units.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-slate-500 font-sans">Trạng thái Truy cập</label>
+                <select
+                  value={sessionStatusFilter}
+                  onChange={(e) => setSessionStatusFilter(e.target.value as any)}
+                  className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none font-sans"
+                >
+                  <option value="all">Tất cả tài khoản</option>
+                  <option value="online">🟢 Đang hoạt động (Online)</option>
+                  <option value="offline">⚫ Ngoại tuyến (Offline)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Session tracking table */}
+            {(() => {
+              const filteredSessions = users.filter(u => {
+                const matchSearch = u.username.toLowerCase().includes(sessionSearchText.toLowerCase()) || 
+                                    u.fullName.toLowerCase().includes(sessionSearchText.toLowerCase());
+                const matchUnit = sessionUnitFilter ? u.unitId === sessionUnitFilter : true;
+                const matchStatus = sessionStatusFilter === 'all' 
+                  ? true 
+                  : sessionStatusFilter === 'online' 
+                    ? u.isSessionActive 
+                    : !u.isSessionActive;
+                return matchSearch && matchUnit && matchStatus;
+              });
+
+              const formatDateTime = (isoString?: string) => {
+                if (!isoString) return 'Chưa ghi nhận hoạt động';
+                try {
+                  const d = new Date(isoString);
+                  const pad = (n: number) => n.toString().padStart(2, '0');
+                  const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                  const dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+                  return `${timeStr} ngày ${dateStr}`;
+                } catch {
+                  return 'Không xác định';
+                }
+              };
+
+              return (
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="p-4 bg-slate-50 border-b border-solid border-slate-200 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-700 font-sans uppercase">
+                      Danh sách Giao dịch viên &amp; Phiên truy cập hiện hành
+                    </span>
+                    <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-100 font-sans select-none animate-pulse">
+                      Cập nhật trực tiếp
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/20 text-slate-500 text-[10px] font-bold uppercase font-sans border-b border-slate-200 tracking-wider">
+                          <th className="px-5 py-3">Đơn vị</th>
+                          <th className="px-5 py-3">Họ và tên</th>
+                          <th className="px-5 py-3">User đăng nhập</th>
+                          <th className="px-5 py-3 text-center">Đăng nhập trong tháng</th>
+                          <th className="px-5 py-3">Hoạt động cuối</th>
+                          <th className="px-5 py-3 text-center">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                        {filteredSessions.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-5 py-12 text-center text-slate-400 font-sans italic">
+                              Hệ thống không tìm thấy phiên truy cập nào phù hợp với bộ lọc hiện thời.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredSessions.map(u => {
+                            const associatedUnit = units.find(item => item.id === u.unitId);
+                            return (
+                              <tr key={u.id} className="hover:bg-slate-50/50 transition-colors text-slate-700">
+                                <td className="px-5 py-3.5 font-sans font-medium text-slate-600">
+                                  {associatedUnit ? associatedUnit.name : 'Quản trị VNPT'}
+                                </td>
+                                <td className="px-5 py-3.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800">{u.fullName}</span>
+                                    <span className={`text-[8px] font-extrabold px-1 py-0.2 rounded-md ${
+                                      u.role === 'Admin' 
+                                        ? 'bg-red-50 text-red-650 border border-red-100' 
+                                        : 'bg-green-50 text-green-650 border border-green-100'
+                                    }`}>
+                                      {u.role === 'Admin' ? 'ADMIN' : 'USER'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 font-bold font-mono text-[#005BAA] text-xs">
+                                  {u.username}
+                                </td>
+                                <td className="px-5 py-3.5 text-center">
+                                  <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono font-bold bg-indigo-50/50 border border-indigo-100/40 text-xs text-indigo-700">
+                                    {u.loginCountThisMonth || 0} lượt
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-slate-500 font-mono text-[11px]">
+                                  {formatDateTime(u.lastActiveTime)}
+                                </td>
+                                <td className="px-5 py-3.5 text-center">
+                                  {u.isSessionActive ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold leading-none">
+                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                                      Trực tuyến
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200 text-[10px] font-bold leading-none">
+                                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                                      Ngoại tuyến
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="p-4 bg-slate-50/50 border-t border-slate-100 text-[11px] text-slate-500 font-sans italic flex items-center gap-1.5 leading-relaxed">
+                    <span className="text-emerald-500 font-bold">●</span>
+                    Cơ chế an ninh lớp sâu tự động phát hiện phiên nhàn rỗi và cưỡng chế đăng xuất hoàn toàn sau 10 phút không tương tác để ngăn chặn truy cập trái phép.
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 

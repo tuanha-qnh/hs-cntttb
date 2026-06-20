@@ -20,6 +20,9 @@ export interface User {
   status: 'active' | 'inactive';
   password?: string;
   canImportData?: boolean;
+  loginCountThisMonth?: number;
+  lastActiveTime?: string;
+  isSessionActive?: boolean;
 }
 
 export interface SubscriberRecord {
