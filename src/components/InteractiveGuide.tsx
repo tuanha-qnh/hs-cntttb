@@ -175,7 +175,7 @@ export default {
             "SELECT * FROM subscribers WHERE phoneNumber LIKE ?1 OR idNumber LIKE ?1 OR fullName LIKE ?1 ORDER BY createdAt DESC"
           ).bind(\`%\${query}%\`).all();
         } else {
-          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC LIMIT 100").all();
+          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC").all();
         }
 
         return new Response(JSON.stringify(result.results), {
@@ -636,7 +636,7 @@ export default {
             "SELECT * FROM subscribers WHERE phoneNumber LIKE ?1 OR idNumber LIKE ?1 OR fullName LIKE ?1 ORDER BY createdAt DESC"
           ).bind(\`%\${query}%\`).all();
         } else {
-          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC LIMIT 100").all();
+          result = await env.DB.prepare("SELECT * FROM subscribers ORDER BY createdAt DESC").all();
         }
 
         return new Response(JSON.stringify(result.results), {

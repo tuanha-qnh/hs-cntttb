@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Eye, User, Clipboard, Building2, Download, X } from 'lucide-react';
 import { SubscriberRecord } from '../types';
 
@@ -12,11 +12,23 @@ interface Props {
   onSearchRequest?: (q: string) => void;
 }
 
-export default function SubscriberLookupModule({ records }: Props) {
+export default function SubscriberLookupModule({ records, onSearchRequest }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<SubscriberRecord | null>(null);
   const itemsPerPage = 6;
+
+  // Gọi sự kiện tra cứu trực tuyến trên máy chủ đám mây với cơ chế Debounce 500ms nâng cao
+  useEffect(() => {
+    if (!onSearchRequest) return;
+    const term = searchTerm.trim();
+    if (term.length >= 2) {
+      const delayDebounce = setTimeout(() => {
+        onSearchRequest(term);
+      }, 500);
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [searchTerm, onSearchRequest]);
 
   // Client-side smart filtering
   const filteredRecords = records.filter((r) => {
@@ -129,8 +141,18 @@ export default function SubscriberLookupModule({ records }: Props) {
                 </div>
               ))
             ) : (
-              <div className="text-center py-12 text-slate-400 font-sans font-medium text-xs font-medium">
-                Không tìm thấy dữ liệu hồ sơ phù hợp.
+              <div className="text-center py-12 text-slate-400 font-sans font-medium text-xs space-y-3 px-4">
+                <p>Không tìm thấy dữ liệu hồ sơ phù hợp trong tệp lưu trữ của trình duyệt.</p>
+                {onSearchRequest && searchTerm.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchRequest(searchTerm)}
+                    className="px-3 py-2 bg-[#005BAA] hover:bg-[#004B8C] text-white text-[11px] font-bold rounded-lg cursor-pointer transition shadow-2xs active:scale-95 inline-flex items-center gap-1.5"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    Tìm kiếm trực tiếp từ máy chủ Cloudflare D1
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -188,7 +210,19 @@ export default function SubscriberLookupModule({ records }: Props) {
                 ) : (
                   <tr>
                     <td colSpan={7} className="text-center py-16 text-slate-400 font-sans font-medium text-xs">
-                      Không tìm thấy dữ liệu hồ sơ thuê bao phù hợp với từ khóa tìm kiếm.
+                      <div className="space-y-3 max-w-md mx-auto py-4">
+                        <p>Không tìm thấy dữ liệu hồ sơ thuê bao phù hợp với từ khóa trong bộ nhớ cục bộ.</p>
+                        {onSearchRequest && searchTerm.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => onSearchRequest(searchTerm)}
+                            className="px-4 py-2 bg-[#005BAA] hover:bg-[#004B8C] text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-xs active:scale-95 inline-flex items-center gap-1.5"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                            Tìm kiếm trực tuyến sâu từ Cloudflare D1 SQL
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}

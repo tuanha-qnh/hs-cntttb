@@ -1498,7 +1498,31 @@ export default function App() {
             )}
 
             {currentTab === 'lookup' && (
-              <SubscriberLookupModule records={subscribers} />
+              <SubscriberLookupModule 
+                records={subscribers} 
+                onSearchRequest={async (query) => {
+                  if (!cloudflareConfig.workerUrl) return;
+                  const activeSecret = cloudflareConfig.apiSecret || '';
+                  const cleanUrl = String(cloudflareConfig.workerUrl || '').trim().replace(/\/$/, '');
+                  try {
+                    const subsRes = await fetch(`${cleanUrl}/api/subscribers?query=${encodeURIComponent(query)}`, {
+                      headers: { 'x-api-secret': activeSecret }
+                    });
+                    if (subsRes.ok) {
+                      const found = await subsRes.json();
+                      if (Array.isArray(found) && found.length > 0) {
+                        setSubscribers(prev => {
+                          const existingIds = new Set(prev.map(p => p.id));
+                          const newRecords = found.filter(f => !existingIds.has(f.id));
+                          return [...newRecords, ...prev];
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Lỗi tra cứu trực tuyến:", err);
+                  }
+                }}
+              />
             )}
 
             {currentTab === 'db_lookup' && (
