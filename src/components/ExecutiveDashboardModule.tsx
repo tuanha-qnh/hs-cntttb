@@ -133,6 +133,24 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     fetchDatabase();
   }, []);
 
+  // Helper to format numbers with local thousand separator (vi-VN)
+  const formatNumber = (num: number | undefined | null): string => {
+    if (num === undefined || num === null) return '0';
+    return num.toLocaleString('vi-VN');
+  };
+
+  // Filter out records belonging to "Đơn vị chưa xác định / Phát sinh ngoài tập"
+  const dashboardRecords = records.filter(r => {
+    const code = (r.Ma_donvi || 'N/A').trim().toUpperCase();
+    const name = (r.Ten_donvi || 'Đơn vị chưa xác định / Phát sinh ngoài tập').trim().toLowerCase();
+    const isUnidentified = 
+      code === 'N/A' || 
+      code === '' ||
+      name.includes('chưa xác định') || 
+      name.includes('phát sinh ngoài tập');
+    return !isUnidentified;
+  });
+
   // -----------------------------------------------------------------
   // STATISTICS BY GROUPS
   // -----------------------------------------------------------------
@@ -143,7 +161,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     'Sai giấy tờ': { total: 0, completed: 0 }
   };
 
-  records.forEach(r => {
+  dashboardRecords.forEach(r => {
     const groupName = classifyGroup(r.Tap_thue_bao);
     if (groupStats[groupName]) {
       groupStats[groupName].total++;
@@ -153,8 +171,8 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     }
   });
 
-  const totalTarget = records.length;
-  const totalCompleted = records.filter(r => r.IsUpdated).length;
+  const totalTarget = dashboardRecords.length;
+  const totalCompleted = dashboardRecords.filter(r => r.IsUpdated).length;
   const totalRemaining = totalTarget - totalCompleted;
   const overallRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 1000) / 10 : 0;
 
@@ -171,7 +189,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     groups: Record<string, { total: number; completed: number }>;
   }> = {};
 
-  records.forEach(r => {
+  dashboardRecords.forEach(r => {
     const code = (r.Ma_donvi || 'N/A').trim();
     const name = (r.Ten_donvi || 'Đơn vị chưa xác định / Phát sinh ngoài tập').trim();
     const groupName = classifyGroup(r.Tap_thue_bao);
@@ -255,15 +273,15 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     return 0;
   });
 
-  // Rank and evaluate for summary lists
-  const sortedByRate = [...unitList].filter(u => u.total >= 3).sort((a, b) => b.rate - a.rate);
-  const bestPerformingUnits = sortedByRate.filter(u => u.rate >= 75).slice(0, 3);
-  const slowPerformingUnits = sortedByRate.filter(u => u.rate < 40).slice(0, 3);
+  // Rank all active units by performance rate (highest to lowest) for the quick emulation list (total 9 units)
+  const quickEmulationRanking = [...unitList]
+    .filter(u => u.total > 0)
+    .sort((a, b) => b.rate - a.rate);
 
   // -----------------------------------------------------------------
   // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
   // -----------------------------------------------------------------
-  const activeUpdatedRecords = records.filter(r => r.IsUpdated && r.Ngay_CN !== null && r.Ngay_CN !== undefined && String(r.Ngay_CN).trim() !== '');
+  const activeUpdatedRecords = dashboardRecords.filter(r => r.IsUpdated && r.Ngay_CN !== null && r.Ngay_CN !== undefined && String(r.Ngay_CN).trim() !== '');
   
   const parseAndNormalizeDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'Khác';
@@ -553,7 +571,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between relative overflow-hidden group transition-all hover:border-slate-300">
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-slate-400 font-sans uppercase tracking-widest block">TỔNG CHỈ TIÊU CHIẾN DỊCH</span>
-                <p className="text-2xl font-black text-slate-800 font-mono leading-none">{totalTarget}</p>
+                <p className="text-2xl font-black text-slate-800 font-mono leading-none">{formatNumber(totalTarget)}</p>
                 <p className="text-[10px] text-slate-500 font-sans">Thuê bao trong tập DS_TB_MUCTIEU</p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -566,7 +584,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between relative overflow-hidden group transition-all hover:border-slate-300">
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-slate-400 font-sans uppercase tracking-widest block">ĐÃ HOÀN THÀNH CẬP NHẬT</span>
-                <p className="text-2xl font-black text-emerald-600 font-mono leading-none">{totalCompleted}</p>
+                <p className="text-2xl font-black text-emerald-600 font-mono leading-none">{formatNumber(totalCompleted)}</p>
                 <p className="text-[10px] text-slate-500 font-sans">Đã đối khớp thành công KQ_CNTTTB</p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-emerald-600 font-medium">
@@ -579,7 +597,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between relative overflow-hidden group transition-all hover:border-slate-300">
               <div className="space-y-1">
                 <span className="text-[9px] font-bold text-slate-400 font-sans uppercase tracking-widest block">HỒ SƠ CÒN LẠI PHẢI THỰC HIỆN</span>
-                <p className="text-2xl font-black text-amber-600 font-mono leading-none">{totalRemaining}</p>
+                <p className="text-2xl font-black text-amber-600 font-mono leading-none">{formatNumber(totalRemaining)}</p>
                 <p className="text-[10px] text-slate-500 font-sans">Cần khẩn trương phân khai hoàn thiện</p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -690,15 +708,15 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                     <div className="grid grid-cols-3 gap-2 text-center pt-3 border-t border-slate-100">
                       <div>
                         <span className="text-[9px] text-slate-400 font-sans uppercase block">CHỈ TIÊU</span>
-                        <span className="text-xs font-bold text-slate-800 font-mono">{item.total}</span>
+                        <span className="text-xs font-bold text-slate-800 font-mono">{formatNumber(item.total)}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 font-sans uppercase block text-emerald-600">ĐÃ ĐẠT</span>
-                        <span className="text-xs font-bold text-emerald-600 font-mono">{item.completed}</span>
+                        <span className="text-xs font-bold text-emerald-600 font-mono">{formatNumber(item.completed)}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 font-sans uppercase block text-amber-600">CÒN TỒN</span>
-                        <span className="text-xs font-bold text-amber-600 font-mono">{remaining}</span>
+                        <span className="text-xs font-bold text-amber-600 font-mono">{formatNumber(remaining)}</span>
                       </div>
                     </div>
                   </div>
@@ -784,7 +802,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           textAnchor="middle" 
                           className="fill-slate-400 font-mono text-[9px] font-bold"
                         >
-                          {item.total}
+                          {formatNumber(item.total)}
                         </text>
 
                         {/* Completed Column (Colored) */}
@@ -805,7 +823,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           className="fill-slate-700 font-mono text-[9px] font-bold"
                           style={{ fill: completedColor }}
                         >
-                          {item.completed}
+                          {formatNumber(item.completed)}
                         </text>
 
                         {/* X-Axis labels */}
@@ -825,10 +843,29 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 </svg>
               </div>
 
-              {/* Legends */}
-              <div className="flex items-center justify-center gap-6 text-[10px] text-slate-500 font-sans mt-2">
-                <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-slate-300 rounded" /> Chỉ tiêu mục tiêu cần thực hiện</span>
-                <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-[#005BAA] rounded" /> Đã hoàn thành cập nhật thực tế</span>
+              {/* Legends with Rates */}
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-center gap-6 text-[10px] text-slate-500 font-sans">
+                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-slate-300 rounded" /> Chỉ tiêu mục tiêu cần thực hiện</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-[#005BAA] rounded" /> Đã hoàn thành thực tế</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] font-extrabold font-sans">
+                  {Object.entries(groupStats).map(([grp, item]) => {
+                    const rate = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
+                    let color = "#005BAA";
+                    if (grp === 'KHDN') color = "#4f46e5";
+                    else if (grp === 'CMND 9 số') color = "#0891b2";
+                    else if (grp === 'CCCD 12 số') color = "#7c3aed";
+                    else if (grp === 'Sai giấy tờ') color = "#e11d48";
+                    
+                    return (
+                      <span key={grp} className="flex items-center gap-1" style={{ color: color }}>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                        {grp} ({rate}%)
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -842,45 +879,59 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                   </h3>
                 </div>
 
-                <div className="space-y-4">
-                  {/* Well Performing Units card */}
-                  <div className="space-y-2">
-                    <span className="text-[9px] font-bold text-emerald-600 font-sans uppercase tracking-widest block">⭐ Đơn vị làm tốt tiêu biểu</span>
-                    <div className="space-y-1.5">
-                      {bestPerformingUnits.length > 0 ? (
-                        bestPerformingUnits.map((u, idx) => (
-                          <div key={u.code} className="flex items-center justify-between text-xs bg-emerald-50/40 border border-emerald-100/50 px-2.5 py-1.5 rounded-xl">
-                            <span className="font-medium text-slate-700 truncate max-w-[160px]">{u.name}</span>
-                            <span className="font-bold text-emerald-600 font-mono">{u.rate}%</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-[11px] text-slate-400 font-sans">Chưa ghi nhận đơn vị nào đạt &ge; 75% hoàn thành chỉ tiêu.</p>
-                      )}
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 font-sans uppercase tracking-wider block mb-2">
+                    Xếp hạng kết quả Đơn vị thực hiện chỉ tiêu
+                  </span>
+                  
+                  <div className="space-y-1.5 max-h-[290px] overflow-y-auto pr-1">
+                    {quickEmulationRanking.length > 0 ? (
+                      quickEmulationRanking.slice(0, 9).map((u, idx) => {
+                        const rankNum = idx + 1;
+                        let rankBadge = '';
+                        let rankBg = 'bg-slate-50 border-slate-150 text-slate-700';
+                        if (rankNum === 1) {
+                          rankBadge = '🥇';
+                          rankBg = 'bg-amber-50/50 border-amber-200 text-amber-800 font-bold';
+                        } else if (rankNum === 2) {
+                          rankBadge = '🥈';
+                          rankBg = 'bg-slate-100/50 border-slate-200 text-slate-800 font-bold';
+                        } else if (rankNum === 3) {
+                          rankBadge = '🥉';
+                          rankBg = 'bg-amber-100/20 border-amber-250 text-amber-900 font-bold';
+                        } else {
+                          rankBadge = `#${rankNum}`;
+                        }
 
-                  {/* Slow Progress Units card */}
-                  <div className="space-y-2 pt-2 border-t border-slate-150/50">
-                    <span className="text-[9px] font-bold text-rose-500 font-sans uppercase tracking-widest block">⚠️ Đôn đốc khẩn tiến độ chậm</span>
-                    <div className="space-y-1.5">
-                      {slowPerformingUnits.length > 0 ? (
-                        slowPerformingUnits.map((u, idx) => (
-                          <div key={u.code} className="flex items-center justify-between text-xs bg-rose-50/40 border border-rose-100/40 px-2.5 py-1.5 rounded-xl">
-                            <span className="font-medium text-slate-700 truncate max-w-[160px]">{u.name}</span>
-                            <span className="font-bold text-rose-500 font-mono">{u.rate}%</span>
+                        return (
+                          <div 
+                            key={u.code} 
+                            className={`flex items-center justify-between gap-3 text-xs border rounded-xl p-2 transition-all hover:bg-slate-50 ${rankBg}`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="font-mono text-[10px] w-7 shrink-0 text-center font-bold">
+                                {rankBadge}
+                              </span>
+                              <div className="truncate">
+                                <p className="font-bold text-slate-800 truncate text-[11px]">{u.name}</p>
+                                <p className="text-[9px] text-slate-400 font-mono">Đã đạt: {formatNumber(u.completed)}/{formatNumber(u.total)}</p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-black font-mono text-[#005BAA] text-xs">{u.rate}%</span>
+                            </div>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-[11px] text-slate-400 font-sans">Chúc mừng! Không có đơn vị nào chậm tiến độ (&lt; 40%).</p>
-                      )}
-                    </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-[11px] text-slate-400 font-sans italic">Chưa ghi nhận đơn vị nòng cốt.</p>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 italic">
-                Lưu ý: Chỉ xếp hạng đánh giá đối với các đơn vị được giao phó trên 3 chỉ tiêu.
+                Bảng xếp hạng cập nhật thời gian thực dựa trên kết quả đạt của cả 9 Đơn vị.
               </div>
             </div>
           </div>
@@ -945,7 +996,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                     const count = dailySystemCounts[d] || 0;
                     return (
                       <option key={d} value={d}>
-                        Ngày {formatted} (Đã rà soát: {count} thuê bao)
+                        Ngày {formatted} (Đã rà soát: {formatNumber(count)} thuê bao)
                       </option>
                     );
                   })}
@@ -1007,10 +1058,10 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                               <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
                                 <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
                                   <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
-                                  +{day.dailyDiff} thuê bao
+                                  +{formatNumber(day.dailyDiff)} thuê bao
                                 </div>
                               </td>
-                              <td className="py-3 px-3 text-center font-mono text-slate-700 font-bold">{day.cumulativeToday} thuê bao</td>
+                              <td className="py-3 px-3 text-center font-mono text-slate-700 font-bold">{formatNumber(day.cumulativeToday)} thuê bao</td>
                               <td className="py-3 px-3 text-center">
                                 <span className={`text-[9px] font-black uppercase text-center border px-2 py-0.5 rounded-full ${scoreColor}`}>
                                   {scoreLabel}
@@ -1067,13 +1118,13 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                               <td className="py-2.5 px-4 text-center bg-blue-50/5">
                                 {row.dailyDiff > 0 ? (
                                   <div className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 bg-emerald-50 text-[11px] px-2.5 py-0.5 rounded-md border border-emerald-100/55">
-                                    +{row.dailyDiff} thuê bao
+                                    +{formatNumber(row.dailyDiff)} thuê bao
                                   </div>
                                 ) : (
                                   <span className="text-slate-350 font-mono font-bold text-slate-300">0</span>
                                 )}
                               </td>
-                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-600">{row.cumulativeToday}</td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-600">{formatNumber(row.cumulativeToday)}</td>
                             </tr>
                           ))
                       ) : (
@@ -1188,13 +1239,13 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                             <div className="text-[10px] font-mono text-[#005BAA] font-bold mt-0.5 uppercase">Mã đơn vị: {u.code}</div>
                           </td>
                           <td className="py-3 px-2 text-center font-bold font-mono text-slate-800 text-xs">
-                            {u.total}
+                            {formatNumber(u.total)}
                           </td>
                           <td className="py-3 px-2 text-center font-bold font-mono text-emerald-600 text-xs">
-                            {u.completed}
+                            {formatNumber(u.completed)}
                           </td>
                           <td className="py-3 px-2 text-center font-bold font-mono text-amber-600 text-xs">
-                            {u.remaining}
+                            {formatNumber(u.remaining)}
                           </td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
@@ -1214,7 +1265,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           
                           {/* KHDN */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-indigo-50/10">
-                            <span className="font-mono">{u.groups['KHDN'].completed} / <b>{u.groups['KHDN'].total}</b></span>
+                            <span className="font-mono">{formatNumber(u.groups['KHDN'].completed)} / <b>{formatNumber(u.groups['KHDN'].total)}</b></span>
                             <span className="text-[9px] text-[#4f46e5] font-semibold block">
                               {u.groups['KHDN'].total > 0 ? `${Math.round((u.groups['KHDN'].completed / u.groups['KHDN'].total)*100)}%` : '-'}
                             </span>
@@ -1222,7 +1273,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           
                           {/* CMND 9 Số */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-cyan-50/10">
-                            <span className="font-mono">{u.groups['CMND 9 số'].completed} / <b>{u.groups['CMND 9 số'].total}</b></span>
+                            <span className="font-mono">{formatNumber(u.groups['CMND 9 số'].completed)} / <b>{formatNumber(u.groups['CMND 9 số'].total)}</b></span>
                             <span className="text-[9px] text-cyan-500 font-semibold block">
                               {u.groups['CMND 9 số'].total > 0 ? `${Math.round((u.groups['CMND 9 số'].completed / u.groups['CMND 9 số'].total)*100)}%` : '-'}
                             </span>
@@ -1230,7 +1281,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           
                           {/* CCCD 12 Số */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-purple-50/10">
-                            <span className="font-mono">{u.groups['CCCD 12 số'].completed} / <b>{u.groups['CCCD 12 số'].total}</b></span>
+                            <span className="font-mono">{formatNumber(u.groups['CCCD 12 số'].completed)} / <b>{formatNumber(u.groups['CCCD 12 số'].total)}</b></span>
                             <span className="text-[9px] text-purple-500 font-semibold block">
                               {u.groups['CCCD 12 số'].total > 0 ? `${Math.round((u.groups['CCCD 12 số'].completed / u.groups['CCCD 12 số'].total)*100)}%` : '-'}
                             </span>
@@ -1238,7 +1289,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           
                           {/* Sai Giấy Tờ */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-rose-50/10">
-                            <span className="font-mono">{u.groups['Sai giấy tờ'].completed} / <b>{u.groups['Sai giấy tờ'].total}</b></span>
+                            <span className="font-mono">{formatNumber(u.groups['Sai giấy tờ'].completed)} / <b>{formatNumber(u.groups['Sai giấy tờ'].total)}</b></span>
                             <span className="text-[9px] text-rose-500 font-semibold block">
                               {u.groups['Sai giấy tờ'].total > 0 ? `${Math.round((u.groups['Sai giấy tờ'].completed / u.groups['Sai giấy tờ'].total)*100)}%` : '-'}
                             </span>
