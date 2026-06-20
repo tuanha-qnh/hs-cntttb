@@ -351,7 +351,7 @@ export default {
           const ten_dv = String(item.Ten_donvi || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao, Ma_donvi = excluded.Ma_donvi, Ten_donvi = excluded.Ten_donvi"
+              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4)"
             ).bind(sdt, tap, ma_dv, ten_dv)
           );
         }
@@ -399,7 +399,7 @@ export default {
 
           statements.push(
             env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+              "INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
@@ -811,7 +811,7 @@ export default {
           const ten_dv = String(item.Ten_donvi || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(So_thue_bao) DO UPDATE SET Tap_thue_bao = excluded.Tap_thue_bao, Ma_donvi = excluded.Ma_donvi, Ten_donvi = excluded.Ten_donvi"
+              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4)"
             ).bind(sdt, tap, ma_dv, ten_dv)
           );
         }
@@ -858,7 +858,7 @@ export default {
 
           statements.push(
             env.DB.prepare(
-              "INSERT INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(so_thue_bao) DO UPDATE SET User_capnhat = excluded.User_capnhat, Ma_hrm_CN = excluded.Ma_hrm_CN, Kenh_CN = excluded.Kenh_CN, Ngay_CN = excluded.Ngay_CN"
+              "INSERT OR REPLACE INTO KQ_CNTTTB (so_thue_bao, User_capnhat, Ma_hrm_CN, Kenh_CN, Ngay_CN) VALUES (?1, ?2, ?3, ?4, ?5)"
             ).bind(sdt, user, hrm, kenh, ngay)
           );
         }
