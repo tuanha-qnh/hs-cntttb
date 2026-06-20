@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  BarChart3, CheckCircle2, AlertCircle, RefreshCw, Sliders, Filter, 
+  BarChart3, CheckCircle2, AlertCircle, RefreshCw, Filter, 
   Building2, Target, Download, Grid, Award, HelpCircle, ArrowUpRight, CheckSquare,
   Calendar, TrendingUp
 } from 'lucide-react';
@@ -1088,63 +1088,6 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 </div>
               </div>
             )}
-
-            {/* SQL MIGRATION UTILITY AND EXPLANATIONS */}
-            <div className="bg-[#005BAA]/5 border border-[#005BAA]/10 rounded-2xl p-4 sm:p-5 mt-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                  <Sliders className="w-5 h-5 text-[#005BAA] mt-0.5" />
-                  <div>
-                    <h4 className="font-bold text-slate-800 text-[13px] font-sans uppercase">
-                      Câu lệnh SQL sửa đổi định dạng NGAY_CN (TEXT ➜ DATE dd/mm/yyyy)
-                    </h4>
-                    <span className="text-[11px] text-slate-500 block mt-0.5">
-                      Dưới đây là các phương án SQL để chuẩn hóa trường <code className="bg-slate-100 text-red-600 px-1 py-0.5 rounded text-[10px] font-mono">NGAY_CN</code> dạng TEXT (như YYYY-MM-DD hoặc ISO timestamp) sang chuẩn cấu trúc ngày Việt Nam <code className="bg-emerald-50 text-emerald-700 px-1 py-0.5 rounded text-[10px] font-mono">dd/mm/yyyy</code>:
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-                <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 relative group overflow-hidden">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">1. HỆ CSDL CLOUDFLARE D1 / SQLITE SQL</span>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText("UPDATE KQ_CNTTTB SET Ngay_CN = SUBSTR(Ngay_CN, 9, 2) || '/' || SUBSTR(Ngay_CN, 6, 2) || '/' || SUBSTR(Ngay_CN, 1, 4) WHERE Ngay_CN LIKE '____-__-__%' AND Ngay_CN NOT LIKE '%/%';");
-                      }}
-                      className="text-[#005BAA] bg-white hover:bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer active:scale-95 transition-all"
-                    >
-                      Click để Sao chép SQL
-                    </button>
-                  </div>
-                  <pre className="text-[10px] font-mono text-emerald-400 overflow-x-auto select-all leading-relaxed whitespace-pre-wrap">
-{`UPDATE KQ_CNTTTB 
-SET Ngay_CN = SUBSTR(Ngay_CN, 9, 2) || '/' || SUBSTR(Ngay_CN, 6, 2) || '/' || SUBSTR(Ngay_CN, 1, 4)
-WHERE Ngay_CN LIKE '____-__-__%' AND Ngay_CN NOT LIKE '%/%';`}
-                  </pre>
-                </div>
-
-                <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 relative group overflow-hidden">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">2. HỆ CSDL ORACLE SQL (HỆ THỐNG VNPT)</span>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText("UPDATE KQ_CNTTTB SET Ngay_CN = TO_CHAR(TO_DATE(Ngay_CN, 'YYYY-MM-DD HH24:MI:SS'), 'DD/MM/YYYY') WHERE REGEXP_LIKE(Ngay_CN, '^[0-9]{4}-[0-9]{2}-[0-9]{2}');");
-                      }}
-                      className="text-[#005BAA] bg-white hover:bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer active:scale-95 transition-all"
-                    >
-                      Click để Sao chép SQL
-                    </button>
-                  </div>
-                  <pre className="text-[10px] font-mono text-sky-400 overflow-x-auto select-all leading-relaxed whitespace-pre-wrap">
-{`UPDATE KQ_CNTTTB 
-SET Ngay_CN = TO_CHAR(TO_DATE(SUBSTR(Ngay_CN, 1, 10), 'YYYY-MM-DD'), 'DD/MM/YYYY')
-WHERE REGEXP_LIKE(Ngay_CN, '^[0-9]{4}-[0-9]{2}-[0-9]{2}');`}
-                  </pre>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* ADVANCED PERFORMANCE VIEW BY DETAILED TABLE */}
