@@ -84,13 +84,23 @@ export default function AdminModule({
     } catch (e: any) {
       console.error('Lỗi đồng bộ Người dùng lên Cloudflare D1:', e);
       
-      const isMissingColumnError = String(e.message || '').includes('canImportData') || String(e.message || '').includes('user_guest') || String(e.message || '').includes('no such column');
+      const isMissingColumnError = String(e.message || '').includes('canImportData') || 
+                                   String(e.message || '').includes('user_guest') || 
+                                   String(e.message || '').includes('isSessionActive') || 
+                                   String(e.message || '').includes('lastActiveTime') || 
+                                   String(e.message || '').includes('loginCountThisMonth') || 
+                                   String(e.message || '').includes('no such column') ||
+                                   String(e.message || '').includes('no column');
       
       if (isMissingColumnError) {
         alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG: CHƯA NÂNG CẤP CƠ SỞ DỮ LIỆU CLOUDFLARE D1!\n\n` +
-              `Cơ sở dữ liệu của bạn thiếu cột "canImportData" hoặc "user_guest". Vui lòng chạy các câu lệnh SQL nâng cấp dưới đây trong trang quản trị Cloudflare D1 của bạn:\n\n` +
+              `Cơ sở dữ liệu của bạn thiếu một hoặc nhiều cột mới (phân quyền hoặc theo dõi trạng thái hoạt động). Để khắc phục, vui lòng truy cập trang quản trị Cloudflare D1 của bạn, chọn database và thực hiện chạy các câu lệnh SQL nâng cấp dưới đây:\n\n` +
               `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n` +
-              `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n\n` +
+              `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n` +
+              `ALTER TABLE users ADD COLUMN isSessionActive INTEGER NOT NULL DEFAULT 0;\n` +
+              `ALTER TABLE users ADD COLUMN lastActiveTime TEXT;\n` +
+              `ALTER TABLE users ADD COLUMN loginCountThisMonth INTEGER NOT NULL DEFAULT 0;\n\n` +
+              `Sau khi chạy xong lệnh SQL trên, vui lòng tải lại trang và thực hiện lại thao tác.\n` +
               `Chi tiết lỗi hệ thống: ${e.message}`);
       } else {
         alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG LÊN CLOUDFLARE!\n` +
