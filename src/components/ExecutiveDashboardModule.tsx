@@ -263,11 +263,11 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   // -----------------------------------------------------------------
   // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
   // -----------------------------------------------------------------
-  const activeUpdatedRecords = records.filter(r => r.Ngay_CN && r.Ngay_CN.trim() !== '');
+  const activeUpdatedRecords = records.filter(r => r.IsUpdated && r.Ngay_CN !== null && r.Ngay_CN !== undefined && String(r.Ngay_CN).trim() !== '');
   
   const parseAndNormalizeDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'Khác';
-    const trimmed = dateStr.trim();
+    const trimmed = String(dateStr).trim();
     
     // Lấy phần ngày trước khoảng trắng (nếu có giờ phút giây, ví dụ "2026-06-19 21:12:45")
     const datePart = trimmed.split(' ')[0];

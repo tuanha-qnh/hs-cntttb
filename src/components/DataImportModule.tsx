@@ -169,7 +169,43 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
             const user = userKey ? String(row[userKey]).trim() : currentUser.username;
             const hrm = hrmKey ? String(row[hrmKey]).trim() : 'N/A';
             const kenh = channelKey ? String(row[channelKey]).trim() : 'WebPortal';
-            const ngay = dateKey ? String(row[dateKey]).trim() : new Date().toLocaleDateString('vi-VN');
+            
+            // Xử lý chuẩn hóa ngày cập nhật (Ngay_CN) từ bất kỳ định dạng nào (bao gồm số của Excel dạng 46192) về định dạng dd/mm/yyyy
+            const rawNgay = dateKey ? row[dateKey] : null;
+            let ngay = '';
+            
+            if (rawNgay !== null && rawNgay !== undefined && String(rawNgay).trim() !== '') {
+              const strVal = String(rawNgay).trim();
+              const numVal = Number(strVal);
+              
+              if (!isNaN(numVal) && numVal > 20000 && numVal < 60000) {
+                // Là số serial của Excel (Ví dụ 46192 -> 19/06/2026)
+                // Epoch của Excel là 30/12/1899 do lỗi tính năm nhuận 1900 của Excel, số ngày chênh lệch là 25569.
+                const date = new Date((numVal - 25569) * 86400 * 1000);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                ngay = `${day}/${month}/${year}`;
+              } else if (strVal.includes('-')) {
+                // Xử lý yyyy-mm-dd hoặc yyyy-mm-dd hh:mm:ss sang dd/mm/yyyy
+                const datePart = strVal.split(' ')[0];
+                const parts = datePart.split('-');
+                if (parts.length === 3 && parts[0].length === 4) {
+                  ngay = `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+                } else {
+                  ngay = strVal;
+                }
+              } else {
+                ngay = strVal;
+              }
+            } else {
+              // Mặc định lấy ngày hôm nay với định dạng dd/mm/yyyy
+              const today = new Date();
+              const day = String(today.getDate()).padStart(2, '0');
+              const month = String(today.getMonth() + 1).padStart(2, '0');
+              const year = today.getFullYear();
+              ngay = `${day}/${month}/${year}`;
+            }
 
             if (sdt) {
               mappedRecords.push({
