@@ -63,6 +63,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   // Daily view options
   const [dailyViewMode, setDailyViewMode] = useState<'system' | 'units'>('system');
   const [selectedDailyUnit, setSelectedDailyUnit] = useState<string>('all');
+  const [selectedDailyDate, setSelectedDailyDate] = useState<string>('all');
 
   const fetchDatabase = async () => {
     setLoading(true);
@@ -262,13 +263,18 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   // -----------------------------------------------------------------
   // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
   // -----------------------------------------------------------------
-  const activeUpdatedRecords = records.filter(r => r.IsUpdated);
+  const activeUpdatedRecords = records.filter(r => r.Ngay_CN && r.Ngay_CN.trim() !== '');
   
   const parseAndNormalizeDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'Khác';
     const trimmed = dateStr.trim();
-    if (trimmed.includes('/')) {
-      const parts = trimmed.split('/');
+    
+    // Lấy phần ngày trước khoảng trắng (nếu có giờ phút giây, ví dụ "2026-06-19 21:12:45")
+    const datePart = trimmed.split(' ')[0];
+    
+    // Chấp nhận định dạng Việt Nam/Oracle dd/mm/yyyy
+    if (datePart.includes('/')) {
+      const parts = datePart.split('/');
       if (parts.length === 3) {
         const day = parts[0].padStart(2, '0');
         const month = parts[1].padStart(2, '0');
@@ -276,11 +282,27 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
         return `${year}-${month}-${day}`;
       }
     }
-    // Trích xuất phần YYYY-MM-DD
-    if (trimmed.length > 10) {
-      return trimmed.substring(0, 10);
+    
+    // Chấp nhận định dạng chuẩn yyyy-mm-dd
+    if (datePart.includes('-')) {
+      const parts = datePart.split('-');
+      if (parts.length === 3) {
+        const year = parts[0];
+        const month = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
     }
-    return trimmed;
+    
+    // Trích xuất phần YYYY-MM-DD nếu dài hơn
+    if (trimmed.length >= 10) {
+      const possibleDate = trimmed.substring(0, 10);
+      if (possibleDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return possibleDate;
+      }
+    }
+    
+    return 'Khác';
   };
 
   // Lấy ra tất cả các ngày duy nhất có cập nhật và sắp xếp tăng dần
@@ -865,15 +887,15 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
 
           {/* DAILY PERFORMANCE ASSESSMENT MODULE */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-[#005BAA]" />
                 <div>
                   <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
-                    Bảng đánh giá kết quả số lượng cập nhật theo Ngày & Đơn vị phụ trách
+                    Đánh giá kết quả số lượng cập nhật theo Ngày & Đơn vị phụ trách
                   </h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Tính toán lượng cập nhật thực tế theo hiệu số của lũy kế hôm nay trừ lũy kế hôm trước (đã bóc tách qua từng đợt import nhiều lần).
+                    Hệ thống trích xuất thống kê trực tiếp sản lượng rà soát hàng ngày thu thập từ trường dữ liệu <code className="font-mono text-[#005BAA] bg-blue-50 px-1 py-0.5 rounded font-bold">NGAY_CN</code>.
                   </p>
                 </div>
               </div>
@@ -905,6 +927,51 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
               </div>
             </div>
 
+            {/* INTERACTIVE MULTI-CRITERIA FILTER BAR */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 border border-slate-150 p-4 rounded-xl">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" /> Chọn ngày sản lượng để lọc xem kết quả:
+                </label>
+                <select
+                  value={selectedDailyDate}
+                  onChange={(e) => setSelectedDailyDate(e.target.value)}
+                  className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#005BAA] font-sans font-bold text-slate-700 w-full"
+                >
+                  <option value="all">-- Hiển thị tất cả các ngày --</option>
+                  {availableDatesStr.map(d => {
+                    const parts = d.split('-');
+                    const formatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    const count = dailySystemCounts[d] || 0;
+                    return (
+                      <option key={d} value={d}>
+                        Ngày {formatted} (Đã rà soát: {count} thuê bao)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" /> Chọn Đơn vị rà soát:
+                </label>
+                <select
+                  value={selectedDailyUnit}
+                  onChange={(e) => setSelectedDailyUnit(e.target.value)}
+                  disabled={dailyViewMode === 'system'}
+                  className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#005BAA] font-sans font-bold text-slate-700 w-full disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  <option value="all">-- Tất cả {allUniqueUnits.length} Đơn vị --</option>
+                  {allUniqueUnits.map(u => (
+                    <option key={u.code} value={u.code}>
+                      {u.name} ({u.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {dailyViewMode === 'system' ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse font-sans text-xs">
@@ -912,49 +979,50 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                     <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
                       <th className="py-2.5 px-4 w-12 text-center">STT</th>
                       <th className="py-2.5 px-3 text-left">Ngày cập nhật sản lượng</th>
-                      <th className="py-2.5 px-3 text-center">Lũy kế hoàn hoàn thành đến Ngày trước (A)</th>
-                      <th className="py-2.5 px-3 text-center">Lũy kế hoàn thành đến Hôm nay (B)</th>
-                      <th className="py-2.5 px-4 text-center font-bold bg-blue-50/20 text-[#005BAA]">Lượng phát sinh hoàn thành (Hiệu số B - A)</th>
-                      <th className="py-2.5 px-3 text-center">Đánh giá chung</th>
+                      <th className="py-2.5 px-4 text-center font-bold bg-blue-50/20 text-[#005BAA]">Đã cập nhật trong ngày (Tính từ NGAY_CN)</th>
+                      <th className="py-2.5 px-3 text-center">Tổng lũy kế đã hoàn thành phát sinh đến Ngày</th>
+                      <th className="py-2.5 px-3 text-center">Đánh giá tốc độ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-150/60">
-                    {systemDailyReport.length > 0 ? (
-                      [...systemDailyReport].reverse().map((day, dIdx) => {
-                        const scoreLabel = day.dailyDiff >= 100 ? "Tốc độ Đột phá" : day.dailyDiff >= 20 ? "Tốc độ Ổn định" : "Cần đẩy mạnh";
-                        const scoreColor = day.dailyDiff >= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
-                                           day.dailyDiff >= 20 ? "bg-indigo-50 text-indigo-700 border-indigo-150" :
-                                           "bg-amber-50 text-amber-700 border-amber-150";
-                        return (
-                          <tr key={day.date} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-3 px-4 font-mono text-center text-slate-400">{dIdx + 1}</td>
-                            <td className="py-3 px-3 font-semibold text-slate-800 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 font-bold" />
-                              {day.formattedDate}
-                              {dIdx === 0 && (
-                                <span className="bg-red-100 text-red-800 font-black text-[8px] px-1.5 py-0.5 rounded font-mono tracking-wider animate-pulse">LATEST</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-3 text-center font-mono text-slate-500 font-medium">{day.cumulativeYesterday}</td>
-                            <td className="py-3 px-3 text-center font-mono text-slate-800 font-bold">{day.cumulativeToday}</td>
-                            <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
-                              <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
-                                <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
-                                +{day.dailyDiff} thuê bao
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <span className={`text-[9px] font-black uppercase text-center border px-2 py-0.5 rounded-full ${scoreColor}`}>
-                                {scoreLabel}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
+                    {systemDailyReport.filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate).length > 0 ? (
+                      [...systemDailyReport]
+                        .filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate)
+                        .reverse()
+                        .map((day, dIdx) => {
+                          const scoreLabel = day.dailyDiff >= 100 ? "Tốc độ Đột phá" : day.dailyDiff >= 20 ? "Tốc độ Ổn định" : "Cần đẩy mạnh";
+                          const scoreColor = day.dailyDiff >= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
+                                             day.dailyDiff >= 20 ? "bg-indigo-50 text-indigo-700 border-indigo-150" :
+                                             "bg-amber-50 text-amber-700 border-amber-150";
+                          return (
+                            <tr key={day.date} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="py-3 px-4 font-mono text-center text-slate-400">{dIdx + 1}</td>
+                              <td className="py-3 px-3 font-semibold text-slate-800 flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400 font-bold" />
+                                {day.formattedDate}
+                                {selectedDailyDate === 'all' && dIdx === 0 && (
+                                  <span className="bg-red-100 text-red-800 font-black text-[8px] px-1.5 py-0.5 rounded font-mono tracking-wider animate-pulse">LATEST</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
+                                <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
+                                  +{day.dailyDiff} thuê bao
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono text-slate-700 font-bold">{day.cumulativeToday} thuê bao</td>
+                              <td className="py-3 px-3 text-center">
+                                <span className={`text-[9px] font-black uppercase text-center border px-2 py-0.5 rounded-full ${scoreColor}`}>
+                                  {scoreLabel}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-400 italic font-sans text-xs">
-                          Chưa ghi nhận số liệu cập nhật dập ngày nào. Hãy hoàn tất nhập thêm dữ liệu cập nhật để hiển thị.
+                        <td colSpan={5} className="py-8 text-center text-slate-400 italic font-sans text-xs">
+                          Chưa ghi nhận số liệu cập nhật khớp ngày nào. Hãy hoàn tất nhập thêm dữ liệu cập nhật để hiển thị.
                         </td>
                       </tr>
                     )}
@@ -964,24 +1032,6 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             ) : (
               // Units View Mode
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-150">
-                  <span className="text-[11px] font-bold text-slate-600 font-sans flex items-center gap-1.5 shrink-0">
-                    <Filter className="w-3.5 h-3.5 text-slate-500" /> Lọc Đơn vị chi tiết:
-                  </span>
-                  <select
-                    value={selectedDailyUnit}
-                    onChange={(e) => setSelectedDailyUnit(e.target.value)}
-                    className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#005BAA] font-sans font-bold text-slate-700 min-w-[220px]"
-                  >
-                    <option value="all">-- Hiển thị tất cả Đơn vị cập nhật --</option>
-                    {allUniqueUnits.map(u => (
-                      <option key={u.code} value={u.code}>
-                        {u.name} ({u.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse font-sans text-xs">
                     <thead>
@@ -989,15 +1039,22 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                         <th className="py-2.5 px-4 w-12 text-center">STT</th>
                         <th className="py-2.5 px-3 text-left">Đơn vị chịu trách nhiệm</th>
                         <th className="py-2.5 px-3 text-left">Ngày đánh giá</th>
-                        <th className="py-2.5 px-3 text-center">Lũy kế ngày trước (A)</th>
-                        <th className="py-2.5 px-3 text-center">Lũy kế ngày hôm nay (B)</th>
-                        <th className="py-2.5 px-4 text-center font-bold bg-blue-50/25 text-[#005BAA]">Đã cập nhật thực tế (Hiệu số B - A)</th>
+                        <th className="py-2.5 px-4 text-center font-bold bg-blue-50/25 text-[#005BAA]">Đã cập nhật thực tế trong ngày (Từ NGAY_CN)</th>
+                        <th className="py-2.5 px-3 text-center">Tổng lũy kế cộng dồn đến ngày</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {unitDailyReport.filter(item => selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit).length > 0 ? (
+                      {unitDailyReport.filter(item => {
+                        const matchUnit = selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit;
+                        const matchDate = selectedDailyDate === 'all' || item.date === selectedDailyDate;
+                        return matchUnit && matchDate;
+                      }).length > 0 ? (
                         [...unitDailyReport]
-                          .filter(item => selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit)
+                          .filter(item => {
+                            const matchUnit = selectedDailyUnit === 'all' || item.unitCode === selectedDailyUnit;
+                            const matchDate = selectedDailyDate === 'all' || item.date === selectedDailyDate;
+                            return matchUnit && matchDate;
+                          })
                           .reverse()
                           .map((row, rIdx) => (
                             <tr key={`${row.unitCode}-${row.date}`} className="hover:bg-slate-50/40 transition-colors">
@@ -1007,23 +1064,22 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                                 <div className="text-[10px] font-mono text-slate-400 mt-0.5">Mã: {row.unitCode}</div>
                               </td>
                               <td className="py-2.5 px-3 font-semibold text-slate-700 font-mono">{row.formattedDate}</td>
-                              <td className="py-2.5 px-3 text-center font-mono text-slate-500">{row.cumulativeYesterday}</td>
-                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-800">{row.cumulativeToday}</td>
-                              <td className="py-2.5 px-4 text-center">
+                              <td className="py-2.5 px-4 text-center bg-blue-50/5">
                                 {row.dailyDiff > 0 ? (
                                   <div className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 bg-emerald-50 text-[11px] px-2.5 py-0.5 rounded-md border border-emerald-100/55">
-                                    +{row.dailyDiff}
+                                    +{row.dailyDiff} thuê bao
                                   </div>
                                 ) : (
-                                  <span className="text-slate-350 font-mono">-</span>
+                                  <span className="text-slate-350 font-mono font-bold text-slate-300">0</span>
                                 )}
                               </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-600">{row.cumulativeToday}</td>
                             </tr>
                           ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-400 italic font-sans text-xs">
-                            Không tìm thấy dữ liệu phát sinh cho lựa chọn đơn vị hiện tại.
+                          <td colSpan={5} className="py-8 text-center text-slate-400 italic font-sans text-xs">
+                            Không tìm thấy dữ liệu rà soát phù hợp cho lựa chọn ngày hoặc đơn vị hiện tại.
                           </td>
                         </tr>
                       )}
@@ -1032,6 +1088,63 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 </div>
               </div>
             )}
+
+            {/* SQL MIGRATION UTILITY AND EXPLANATIONS */}
+            <div className="bg-[#005BAA]/5 border border-[#005BAA]/10 rounded-2xl p-4 sm:p-5 mt-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <Sliders className="w-5 h-5 text-[#005BAA] mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-[13px] font-sans uppercase">
+                      Câu lệnh SQL sửa đổi định dạng NGAY_CN (TEXT ➜ DATE dd/mm/yyyy)
+                    </h4>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Dưới đây là các phương án SQL để chuẩn hóa trường <code className="bg-slate-100 text-red-600 px-1 py-0.5 rounded text-[10px] font-mono">NGAY_CN</code> dạng TEXT (như YYYY-MM-DD hoặc ISO timestamp) sang chuẩn cấu trúc ngày Việt Nam <code className="bg-emerald-50 text-emerald-700 px-1 py-0.5 rounded text-[10px] font-mono">dd/mm/yyyy</code>:
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+                <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 relative group overflow-hidden">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">1. HỆ CSDL CLOUDFLARE D1 / SQLITE SQL</span>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("UPDATE KQ_CNTTTB SET Ngay_CN = SUBSTR(Ngay_CN, 9, 2) || '/' || SUBSTR(Ngay_CN, 6, 2) || '/' || SUBSTR(Ngay_CN, 1, 4) WHERE Ngay_CN LIKE '____-__-__%' AND Ngay_CN NOT LIKE '%/%';");
+                      }}
+                      className="text-[#005BAA] bg-white hover:bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer active:scale-95 transition-all"
+                    >
+                      Click để Sao chép SQL
+                    </button>
+                  </div>
+                  <pre className="text-[10px] font-mono text-emerald-400 overflow-x-auto select-all leading-relaxed whitespace-pre-wrap">
+{`UPDATE KQ_CNTTTB 
+SET Ngay_CN = SUBSTR(Ngay_CN, 9, 2) || '/' || SUBSTR(Ngay_CN, 6, 2) || '/' || SUBSTR(Ngay_CN, 1, 4)
+WHERE Ngay_CN LIKE '____-__-__%' AND Ngay_CN NOT LIKE '%/%';`}
+                  </pre>
+                </div>
+
+                <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 relative group overflow-hidden">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">2. HỆ CSDL ORACLE SQL (HỆ THỐNG VNPT)</span>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("UPDATE KQ_CNTTTB SET Ngay_CN = TO_CHAR(TO_DATE(Ngay_CN, 'YYYY-MM-DD HH24:MI:SS'), 'DD/MM/YYYY') WHERE REGEXP_LIKE(Ngay_CN, '^[0-9]{4}-[0-9]{2}-[0-9]{2}');");
+                      }}
+                      className="text-[#005BAA] bg-white hover:bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer active:scale-95 transition-all"
+                    >
+                      Click để Sao chép SQL
+                    </button>
+                  </div>
+                  <pre className="text-[10px] font-mono text-sky-400 overflow-x-auto select-all leading-relaxed whitespace-pre-wrap">
+{`UPDATE KQ_CNTTTB 
+SET Ngay_CN = TO_CHAR(TO_DATE(SUBSTR(Ngay_CN, 1, 10), 'YYYY-MM-DD'), 'DD/MM/YYYY')
+WHERE REGEXP_LIKE(Ngay_CN, '^[0-9]{4}-[0-9]{2}-[0-9]{2}');`}
+                  </pre>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ADVANCED PERFORMANCE VIEW BY DETAILED TABLE */}

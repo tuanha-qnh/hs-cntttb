@@ -209,7 +209,7 @@ export default function App() {
   });
 
   // Navigation Panel Views
-  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'exec_dashboard' | 'guide' | 'admin' | 'import_data'>('stats');
+  const [currentTab, setCurrentTab] = useState<'stats' | 'entry' | 'lookup' | 'db_lookup' | 'exec_dashboard' | 'guide' | 'admin' | 'import_data'>('exec_dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Mobile Adaption States
@@ -1311,6 +1311,18 @@ export default function App() {
             {/* List links */}
             <nav className="space-y-1 px-3">
               <button
+                onClick={() => setCurrentTab('exec_dashboard')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                  currentTab === 'exec_dashboard'
+                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <BarChart3 className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'exec_dashboard' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Dashboard Điều hành</span>
+              </button>
+
+              <button
                 onClick={() => setCurrentTab('stats')}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
                   currentTab === 'stats'
@@ -1356,18 +1368,6 @@ export default function App() {
               >
                 <CheckCircle className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'db_lookup' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
                 <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Tra cứu Kết quả TTTB</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentTab('exec_dashboard')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
-                  currentTab === 'exec_dashboard'
-                    ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <BarChart3 className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'exec_dashboard' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Dashboard Điều hành</span>
               </button>
 
               {currentUser?.username === 'admin' && (
