@@ -304,7 +304,8 @@ export default function App() {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-                canImportData: u.canImportData === 1 || u.canImportData === true
+                canImportData: u.canImportData === 1 || u.canImportData === true,
+                user_guest: u.user_guest === 1 || u.user_guest === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -402,7 +403,8 @@ export default function App() {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-                canImportData: u.canImportData === 1 || u.canImportData === true
+                canImportData: u.canImportData === 1 || u.canImportData === true,
+                user_guest: u.user_guest === 1 || u.user_guest === true
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -539,7 +541,8 @@ export default function App() {
               const parsedUsers = externalUsers.map((u: any) => ({
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-                canImportData: u.canImportData === 1 || u.canImportData === true
+                canImportData: u.canImportData === 1 || u.canImportData === true,
+                user_guest: u.user_guest === 1 || u.user_guest === true
               }));
               setUsers(parsedUsers);
             }
@@ -862,16 +865,17 @@ export default function App() {
       }
 
       if (syncUsersSuccessCount < users.length && userSyncError) {
-        const isMissingColumn = userSyncError.includes('canImportData') || userSyncError.includes('no such column');
+        const isMissingColumn = userSyncError.includes('canImportData') || userSyncError.includes('user_guest') || userSyncError.includes('no such column');
         if (isMissingColumn) {
-          alert(`⚠️ KHÔNG THỂ ĐỒNG BỘ TÀI KHOẢN NHÂN VỰNG LÊN CLOUDFLARE D1!\n\n` +
-                `Nguyên nhân: Cơ sở dữ liệu Cloud D1 của bạn chưa được nâng cấp tương thích (Thiếu cột "canImportData" trong bảng users).\n\n` +
+          alert(`⚠️ KHÔNG THỂ ĐỒNG BỘ TÀI KHOẢN NHÂN SỰ LÊN CLOUDFLARE D1!\n\n` +
+                `Nguyên nhân: Cơ sở dữ liệu Cloud D1 của bạn chưa được nâng cấp tương thích (Thiếu cột "canImportData" hoặc "user_guest" trong bảng users).\n\n` +
                 `Yêu cầu hành động:\n` +
-                `Vui lòng truy cập trang quản trị Cloudflare D1 của bạn, chọn database và thực thi câu lệnh SQL nâng cấp sau đây:\n\n` +
-                `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n\n` +
+                `Vui lòng truy cập trang quản trị Cloudflare D1 của bạn, chọn database và thực thi các câu lệnh SQL nâng cấp sau đây:\n\n` +
+                `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n` +
+                `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n\n` +
                 `Sau khi chạy lệnh SQL trên, vui lòng bấm Đồng bộ lại.`);
         } else {
-          alert(`⚠️ LỖI ĐỒNG BỘ TÀI KHOẢN SỬ:\nChi tiết lý do từ Worker: ${userSyncError}`);
+          alert(`⚠️ LỖI ĐỒNG BỘ TÀI KHOẢN:\nChi tiết lý do từ Worker: ${userSyncError}`);
         }
       }
 
@@ -970,7 +974,8 @@ export default function App() {
       const parsedUsers = externalUsers.map((u: any) => ({
         ...u,
         isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
-        canImportData: u.canImportData === 1 || u.canImportData === true
+        canImportData: u.canImportData === 1 || u.canImportData === true,
+        user_guest: u.user_guest === 1 || u.user_guest === true
       }));
       setUsers(parsedUsers);
       localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -1398,14 +1403,19 @@ export default function App() {
 
               <button
                 onClick={() => setCurrentTab('entry')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold font-sans transition-all relative cursor-pointer group ${
                   currentTab === 'entry'
                     ? 'bg-[#005BAA] text-white shadow-sm shadow-[#005BAA]/30 border border-blue-500/20'
                     : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
                 }`}
               >
-                <FileText className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'entry' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cập nhật TTTB (Nhập liệu)</span>
+                <div className="flex items-center gap-3">
+                  <FileText className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'entry' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                  <span className={`${sidebarOpen ? 'block' : 'hidden md:hidden'}`}>Cập nhật TTTB (Nhập liệu)</span>
+                </div>
+                {currentUser.user_guest && sidebarOpen && (
+                  <Lock className="w-3 h-3 text-amber-550 shrink-0" />
+                )}
               </button>
 
               <button
@@ -1547,16 +1557,42 @@ export default function App() {
             )}
 
             {currentTab === 'entry' && (
-              <SubscriberEntryModule 
-                cloudflareConfig={cloudflareConfig} 
-                onRecordCreated={handleRecordCreated}
-                currentUser={{
-                  id: currentUser.id,
-                  fullName: currentUser.fullName,
-                  unitId: currentUser.unitId,
-                  nameUnit: currentUnitName,
-                }}
-              />
+              currentUser.user_guest ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-12 text-center max-w-lg mx-auto my-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5 border border-amber-100">
+                    <Lock className="w-7 h-7 text-amber-600" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800 font-sans mb-2">Tài khoản hạn chế quyền (User Khách)</h3>
+                  <p className="text-slate-500 text-xs leading-relaxed font-sans mb-6">
+                    Tài khoản của bạn (<strong className="text-slate-700">{currentUser.username}</strong>) đang được phân quyền là <strong className="text-amber-700">User khách</strong>. Giao diện <strong>Cập nhật TTTB (Nhập liệu)</strong> bị hạn chế, bạn chỉ có quyền xem báo cáo số liệu và thực hiện tra cứu.
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => setCurrentTab('stats')}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                    >
+                      Báo cáo Thống kê
+                    </button>
+                    <button
+                      onClick={() => setCurrentTab('lookup')}
+                      className="px-4 py-2 bg-[#005BAA] hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer animate-pulse"
+                    >
+                      Tra cứu hồ sơ
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <SubscriberEntryModule 
+                  cloudflareConfig={cloudflareConfig} 
+                  onRecordCreated={handleRecordCreated}
+                  currentUser={{
+                    id: currentUser.id,
+                    fullName: currentUser.fullName,
+                    unitId: currentUser.unitId,
+                    nameUnit: currentUnitName,
+                  }}
+                />
+              )
             )}
 
             {currentTab === 'lookup' && (

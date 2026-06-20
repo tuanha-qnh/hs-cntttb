@@ -20,6 +20,7 @@ export interface User {
   status: 'active' | 'inactive';
   password?: string;
   canImportData?: boolean;
+  user_guest?: boolean;
   loginCountThisMonth?: number;
   lastActiveTime?: string;
   isSessionActive?: boolean;

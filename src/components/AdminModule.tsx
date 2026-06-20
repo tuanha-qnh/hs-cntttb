@@ -84,12 +84,13 @@ export default function AdminModule({
     } catch (e: any) {
       console.error('Lỗi đồng bộ Người dùng lên Cloudflare D1:', e);
       
-      const isMissingColumnError = String(e.message || '').includes('canImportData') || String(e.message || '').includes('no such column');
+      const isMissingColumnError = String(e.message || '').includes('canImportData') || String(e.message || '').includes('user_guest') || String(e.message || '').includes('no such column');
       
       if (isMissingColumnError) {
         alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG: CHƯA NÂNG CẤP CƠ SỞ DỮ LIỆU CLOUDFLARE D1!\n\n` +
-              `Cơ sở dữ liệu của bạn thiếu cột "canImportData". Để phân quyền upload, vui lòng chạy câu lệnh SQL nâng cấp dưới đây trong trang quản trị Cloudflare D1 của bạn:\n\n` +
-              `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n\n` +
+              `Cơ sở dữ liệu của bạn thiếu cột "canImportData" hoặc "user_guest". Vui lòng chạy các câu lệnh SQL nâng cấp dưới đây trong trang quản trị Cloudflare D1 của bạn:\n\n` +
+              `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n` +
+              `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n\n` +
               `Chi tiết lỗi hệ thống: ${e.message}`);
       } else {
         alert(`⚠️ LỖI ĐỒNG BỘ NGƯỜI DÙNG LÊN CLOUDFLARE!\n` +
@@ -279,7 +280,8 @@ export default function AdminModule({
     fullName: '',
     role: 'User' as 'Admin' | 'User',
     unitId: 'UN_ROOT',
-    canImportData: false
+    canImportData: false,
+    user_guest: false
   });
 
   const [userSearchText, setUserSearchText] = useState('');
@@ -295,6 +297,7 @@ export default function AdminModule({
   const [editUserRole, setEditUserRole] = useState<'Admin' | 'User'>('User');
   const [editUserPassword, setEditUserPassword] = useState('');
   const [editUserCanImport, setEditUserCanImport] = useState(false);
+  const [editUserIsGuest, setEditUserIsGuest] = useState(false);
 
   const handleStartEditUser = (user: User) => {
     setEditingUser(user);
@@ -303,6 +306,7 @@ export default function AdminModule({
     setEditUserRole(user.role);
     setEditUserPassword('');
     setEditUserCanImport(!!user.canImportData);
+    setEditUserIsGuest(!!user.user_guest);
   };
 
   const handleSaveEditUser = (e: React.FormEvent) => {
@@ -319,6 +323,7 @@ export default function AdminModule({
       unitId: editUserUnitId,
       role: editUserRole,
       canImportData: editUserCanImport,
+      user_guest: editUserIsGuest,
     };
 
     if (editUserPassword.trim()) {
@@ -339,7 +344,7 @@ export default function AdminModule({
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    const { username, fullName, role, unitId, canImportData } = adminUserForm;
+    const { username, fullName, role, unitId, canImportData, user_guest } = adminUserForm;
     if (!username.trim() || !fullName.trim()) {
       alert('Vui lòng điền đủ Username và Họ tên.');
       return;
@@ -360,7 +365,8 @@ export default function AdminModule({
       isFirstLogin: true, // Requires password change
       status: 'active',
       password: 'Vnpt@2026',
-      canImportData
+      canImportData,
+      user_guest: user_guest
     };
 
     onUsersChange([...users, newUser]);
@@ -378,7 +384,8 @@ export default function AdminModule({
       fullName: '',
       role: 'User',
       unitId: 'UN_ROOT',
-      canImportData: false
+      canImportData: false,
+      user_guest: false
     });
   };
 
@@ -795,6 +802,20 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                   </label>
                 </div>
 
+                <div className="flex items-center gap-2 py-1 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
+                  <input
+                    type="checkbox"
+                    id="user_guest"
+                    checked={adminUserForm.user_guest}
+                    onChange={(e) => setAdminUserForm({ ...adminUserForm, user_guest: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <label htmlFor="user_guest" className="text-[11px] font-semibold text-slate-700 cursor-pointer font-sans select-none flex items-center gap-1">
+                    <span>Là user khách (Chỉ xem/tra cứu)</span>
+                    <span className="text-[9px] bg-amber-150 text-amber-700 px-1 py-0.2 rounded font-sans font-bold">GUEST</span>
+                  </label>
+                </div>
+
                 <button
                   type="submit"
                   className="w-full py-2 bg-[#005BAA] hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
@@ -883,6 +904,11 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                                     {(u.canImportData || u.role === 'Admin') && (
                                       <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-indigo-50 text-indigo-650 border border-indigo-100 uppercase tracking-tight">
                                         + Quyền Upload
+                                      </span>
+                                    )}
+                                    {u.user_guest && (
+                                      <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-amber-50 text-amber-700 border border-amber-250 uppercase tracking-tight">
+                                        👥 User Khách
                                       </span>
                                     )}
                                   </div>
@@ -1462,8 +1488,22 @@ Chi tiết báo lỗi kỹ thuật: ${msg}`);
                   onChange={(e) => setEditUserCanImport(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-[#005BAA] focus:ring-[#005BAA] cursor-pointer"
                 />
-                <label htmlFor="editUserCanImport" className="text-[11px] font-semibold text-slate-750 cursor-pointer font-sans select-none">
+                <label htmlFor="editUserCanImport" className="text-[11px] font-semibold text-slate-755 cursor-pointer font-sans select-none">
                   Quyền khai thác module upload dữ liệu
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 py-1.5 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50 focus-within:ring-1 focus-within:ring-amber-550">
+                <input
+                  type="checkbox"
+                  id="editUserIsGuest"
+                  checked={editUserIsGuest}
+                  onChange={(e) => setEditUserIsGuest(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="editUserIsGuest" className="text-[11px] font-semibold text-slate-755 cursor-pointer font-sans select-none flex items-center gap-1">
+                  <span>Là user khách (Chỉ xem và tra cứu)</span>
+                  <span className="text-[9px] bg-amber-100/50 text-amber-800 px-1.5 py-0.2 rounded font-bold font-sans">GUEST</span>
                 </label>
               </div>
 

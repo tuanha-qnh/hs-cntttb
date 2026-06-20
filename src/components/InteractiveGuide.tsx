@@ -40,12 +40,13 @@ CREATE TABLE IF NOT EXISTS users (
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
   password TEXT NOT NULL DEFAULT 'Vnpt@2026',
-  canImportData INTEGER NOT NULL DEFAULT 0
+  canImportData INTEGER NOT NULL DEFAULT 0,
+  user_guest INTEGER NOT NULL DEFAULT 0
 );
 
 -- Chèn dữ liệu tài khoản quản trị và giao dịch viên mẫu
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1);
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1, 0);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0, 0);
 
 -- 3. TẠO BẢNG HỒ SƠ THUÊ BAO
 CREATE TABLE IF NOT EXISTS subscribers (
@@ -312,9 +313,10 @@ export default {
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
           const dbCanImport = user.canImportData ? 1 : 0;
+          const dbUserGuest = user.user_guest ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport, dbUserGuest).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -773,9 +775,10 @@ export default {
           const dbIsFirstLogin = user.isFirstLogin ? 1 : 0;
           const userPassword = user.password || "Vnpt@2026";
           const dbCanImport = user.canImportData ? 1 : 0;
+          const dbUserGuest = user.user_guest ? 1 : 0;
           await env.DB.prepare(
-            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
-          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport).run();
+            "INSERT OR REPLACE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+          ).bind(user.id, user.username, user.fullName, user.role, user.unitId, dbIsFirstLogin, user.status, userPassword, dbCanImport, dbUserGuest).run();
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -1119,11 +1122,11 @@ API_SECRET = "Mật_Khẩu_Tự_Chọn_Bảo_Mật_Cao_Cho_Hệ_Thống"`;
               {copiedId === 'alter_sql' ? 'Đã copy câu lệnh nâng cấp!' : 'Copy lệnh SQL nâng cấp mật khẩu'}
             </button>
             <button
-              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;", 'alter_import_sql')}
+              onClick={() => copyToClipboard("ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\nALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;", 'alter_import_sql')}
               className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />
-              {copiedId === 'alter_import_sql' ? 'Đã copy câu lệnh nâng cấp Quyền upload!' : 'Copy lệnh SQL nâng cấp Quyền upload'}
+              {copiedId === 'alter_import_sql' ? 'Đã copy câu lệnh nâng cấp CQ!' : 'Copy lệnh SQL nâng cấp Cột phân quyền'}
             </button>
             <button
               onClick={() => copyToClipboard(`DROP TABLE IF EXISTS users;
@@ -1136,10 +1139,11 @@ CREATE TABLE users (
   isFirstLogin INTEGER NOT NULL,
   status TEXT NOT NULL,
   password TEXT NOT NULL DEFAULT 'Vnpt@2026',
-  canImportData INTEGER NOT NULL DEFAULT 0
+  canImportData INTEGER NOT NULL DEFAULT 0,
+  user_guest INTEGER NOT NULL DEFAULT 0
 );
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1);
-INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0);`, 'recreate_sql')}
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES ('admin', 'admin', 'Quản trị viên VNPT', 'Admin', 'UN_ROOT', 0, 'active', 'admin', 1, 0);
+INSERT OR IGNORE INTO users (id, username, fullName, role, unitId, isFirstLogin, status, password, canImportData, user_guest) VALUES ('tuanha', 'tuanha', 'Trần Tuấn Anh', 'User', 'UN_BC', 1, 'active', 'Vnpt@2026', 0, 0);`, 'recreate_sql')}
               className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 active:scale-95"
             >
               <Copy className="w-3 h-3" />
