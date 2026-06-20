@@ -305,7 +305,10 @@ export default function App() {
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
                 canImportData: u.canImportData === 1 || u.canImportData === true,
-                user_guest: u.user_guest === 1 || u.user_guest === true
+                user_guest: u.user_guest === 1 || u.user_guest === true,
+                isSessionActive: u.isSessionActive === 1 || u.isSessionActive === true,
+                loginCountThisMonth: Number(u.loginCountThisMonth || 0),
+                lastActiveTime: u.lastActiveTime || ''
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -404,7 +407,10 @@ export default function App() {
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
                 canImportData: u.canImportData === 1 || u.canImportData === true,
-                user_guest: u.user_guest === 1 || u.user_guest === true
+                user_guest: u.user_guest === 1 || u.user_guest === true,
+                isSessionActive: u.isSessionActive === 1 || u.isSessionActive === true,
+                loginCountThisMonth: Number(u.loginCountThisMonth || 0),
+                lastActiveTime: u.lastActiveTime || ''
               }));
               setUsers(parsedUsers);
               localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
@@ -542,7 +548,10 @@ export default function App() {
                 ...u,
                 isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
                 canImportData: u.canImportData === 1 || u.canImportData === true,
-                user_guest: u.user_guest === 1 || u.user_guest === true
+                user_guest: u.user_guest === 1 || u.user_guest === true,
+                isSessionActive: u.isSessionActive === 1 || u.isSessionActive === true,
+                loginCountThisMonth: Number(u.loginCountThisMonth || 0),
+                lastActiveTime: u.lastActiveTime || ''
               }));
               setUsers(parsedUsers);
             }
@@ -564,6 +573,30 @@ export default function App() {
   // AUTH PROCEDURES
   // ----------------------------------------------------------------------
   
+  const syncUserStatusToCloud = async (user: User) => {
+    if (cloudflareConfig.enabled && cloudflareConfig.workerUrl) {
+      try {
+        let cleanUrl = cloudflareConfig.workerUrl.trim();
+        if (cleanUrl.endsWith('/')) {
+          cleanUrl = cleanUrl.slice(0, -1);
+        }
+        await fetch(`${cleanUrl}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': cloudflareConfig.apiSecret,
+          },
+          body: JSON.stringify({
+            action: 'update',
+            user
+          })
+        });
+      } catch (err) {
+        console.error('Lỗi sync user status to cloud:', err);
+      }
+    }
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -600,6 +633,7 @@ export default function App() {
 
     setUsers((prev) => prev.map((u) => u.id === matchedUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
+    syncUserStatusToCloud(updatedUser);
     setUsernameInput('');
     setPasswordInput('');
   };
@@ -748,9 +782,11 @@ export default function App() {
 
   const handleLogout = () => {
     if (currentUser) {
+      const loggedOutUser = { ...currentUser, isSessionActive: false };
       setUsers((prev) =>
-        prev.map((u) => (u.id === currentUser.id ? { ...u, isSessionActive: false } : u))
+        prev.map((u) => (u.id === currentUser.id ? loggedOutUser : u))
       );
+      syncUserStatusToCloud(loggedOutUser);
     }
     setCurrentUser(null);
     setCurrentTab('stats');
@@ -865,14 +901,17 @@ export default function App() {
       }
 
       if (syncUsersSuccessCount < users.length && userSyncError) {
-        const isMissingColumn = userSyncError.includes('canImportData') || userSyncError.includes('user_guest') || userSyncError.includes('no such column');
+        const isMissingColumn = userSyncError.includes('canImportData') || userSyncError.includes('user_guest') || userSyncError.includes('isSessionActive') || userSyncError.includes('lastActiveTime') || userSyncError.includes('loginCountThisMonth') || userSyncError.includes('no such column');
         if (isMissingColumn) {
           alert(`⚠️ KHÔNG THỂ ĐỒNG BỘ TÀI KHOẢN NHÂN SỰ LÊN CLOUDFLARE D1!\n\n` +
-                `Nguyên nhân: Cơ sở dữ liệu Cloud D1 của bạn chưa được nâng cấp tương thích (Thiếu cột "canImportData" hoặc "user_guest" trong bảng users).\n\n` +
+                `Nguyên nhân: Cơ sở dữ liệu Cloud D1 của bạn chưa được nâng cấp tương thích (Thiếu cột phân quyền hoặc thống kê trong bảng users).\n\n` +
                 `Yêu cầu hành động:\n` +
                 `Vui lòng truy cập trang quản trị Cloudflare D1 của bạn, chọn database và thực thi các câu lệnh SQL nâng cấp sau đây:\n\n` +
                 `ALTER TABLE users ADD COLUMN canImportData INTEGER NOT NULL DEFAULT 0;\n` +
-                `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n\n` +
+                `ALTER TABLE users ADD COLUMN user_guest INTEGER NOT NULL DEFAULT 0;\n` +
+                `ALTER TABLE users ADD COLUMN isSessionActive INTEGER NOT NULL DEFAULT 0;\n` +
+                `ALTER TABLE users ADD COLUMN lastActiveTime TEXT;\n` +
+                `ALTER TABLE users ADD COLUMN loginCountThisMonth INTEGER NOT NULL DEFAULT 0;\n\n` +
                 `Sau khi chạy lệnh SQL trên, vui lòng bấm Đồng bộ lại.`);
         } else {
           alert(`⚠️ LỖI ĐỒNG BỘ TÀI KHOẢN:\nChi tiết lý do từ Worker: ${userSyncError}`);
@@ -975,7 +1014,10 @@ export default function App() {
         ...u,
         isFirstLogin: u.isFirstLogin === 1 || u.isFirstLogin === true,
         canImportData: u.canImportData === 1 || u.canImportData === true,
-        user_guest: u.user_guest === 1 || u.user_guest === true
+        user_guest: u.user_guest === 1 || u.user_guest === true,
+        isSessionActive: u.isSessionActive === 1 || u.isSessionActive === true,
+        loginCountThisMonth: Number(u.loginCountThisMonth || 0),
+        lastActiveTime: u.lastActiveTime || ''
       }));
       setUsers(parsedUsers);
       localStorage.setItem('vnpt_users', JSON.stringify(parsedUsers));
