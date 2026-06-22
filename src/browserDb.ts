@@ -108,24 +108,27 @@ export function saveBrowserMuctieu(records: any[], isFirstBatch: boolean = true)
   try {
     let current = isFirstBatch ? [] : getBrowserMuctieu();
     
-    // Simple batch upsert logic
+    // Highly-optimized O(N) Map-based bulk upsert
+    const map = new Map<string, any>();
+    current.forEach(item => {
+      const phone = String(item.So_thue_bao || "").trim();
+      if (phone) {
+        map.set(phone, item);
+      }
+    });
+
     records.forEach(item => {
       const phone = String(item.So_thue_bao || "").trim();
       if (!phone) return;
-      const index = current.findIndex((r: any) => r.So_thue_bao.trim() === phone);
-      const row = {
+      map.set(phone, {
         So_thue_bao: phone,
         Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim(),
         Ma_donvi: (item.Ma_donvi || "").trim(),
         Ten_donvi: (item.Ten_donvi || "").trim()
-      };
-
-      if (index !== -1) {
-        current[index] = row;
-      } else {
-        current.push(row);
-      }
+      });
     });
+
+    current = Array.from(map.values());
 
     try {
       localStorage.setItem(LOCAL_MUCTIEU_KEY, JSON.stringify(current));
@@ -151,25 +154,28 @@ export function saveBrowserKetqua(records: any[], isFirstBatch: boolean = true) 
   try {
     let current = isFirstBatch ? [] : getBrowserKetqua();
 
-    // Simple batch upsert logic
+    // Highly-optimized O(N) Map-based bulk upsert
+    const map = new Map<string, any>();
+    current.forEach(item => {
+      const phone = String(item.so_thue_bao || "").trim();
+      if (phone) {
+        map.set(phone, item);
+      }
+    });
+
     records.forEach(item => {
       const phone = String(item.so_thue_bao || "").trim();
       if (!phone) return;
-      const index = current.findIndex((r: any) => r.so_thue_bao.trim() === phone);
-      const row = {
+      map.set(phone, {
         so_thue_bao: phone,
         User_capnhat: String(item.User_capnhat || "admin").trim(),
         Ma_hrm_CN: String(item.Ma_hrm_CN || "N/A").trim(),
         Kenh_CN: String(item.Kenh_CN || "WebPortal").trim(),
         Ngay_CN: String(item.Ngay_CN || new Date().toLocaleDateString('vi-VN')).trim()
-      };
-
-      if (index !== -1) {
-        current[index] = row;
-      } else {
-        current.push(row);
-      }
+      });
     });
+
+    current = Array.from(map.values());
 
     try {
       localStorage.setItem(LOCAL_KETQUA_KEY, JSON.stringify(current));

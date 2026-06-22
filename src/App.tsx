@@ -1412,7 +1412,7 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Left Navigation Panel */}
         <aside
-          className={`bg-slate-900 border-r border-slate-800 text-white transition-all shrink-0 z-30 flex flex-col duration-200 ${
+          className={`bg-slate-900 border-r border-slate-800 text-white transition-all shrink-0 z-30 flex flex-col duration-200 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto ${
             isMobileMode ? 'hidden' : sidebarOpen ? 'w-64' : 'w-0 lg:w-20 overflow-hidden'
           }`}
         >

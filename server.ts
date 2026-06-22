@@ -201,6 +201,14 @@ async function startServer() {
       if (isFirstBatch) {
         database.DS_TB_MUCTIEU = [];
       }
+
+      // Optimize list merge using a Map
+      const map = new Map<string, any>();
+      database.DS_TB_MUCTIEU.forEach((u) => {
+        const phone = u.So_thue_bao.trim();
+        if (phone) map.set(phone, u);
+      });
+
       let insertedCount = 0;
       let updatedCount = 0;
 
@@ -209,24 +217,23 @@ async function startServer() {
         if (!rawPhone) continue;
 
         const cleanPhone = rawPhone;
-        const existingIndex = database.DS_TB_MUCTIEU.findIndex((u) => u.So_thue_bao.trim() === cleanPhone);
+        const exists = map.has(cleanPhone);
 
-        if (existingIndex !== -1) {
-          database.DS_TB_MUCTIEU[existingIndex].Tap_thue_bao = (item.Tap_thue_bao || "Mặc định").trim();
-          database.DS_TB_MUCTIEU[existingIndex].Ma_donvi = (item.Ma_donvi || "").trim();
-          database.DS_TB_MUCTIEU[existingIndex].Ten_donvi = (item.Ten_donvi || "").trim();
+        map.set(cleanPhone, {
+          So_thue_bao: cleanPhone,
+          Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim(),
+          Ma_donvi: (item.Ma_donvi || "").trim(),
+          Ten_donvi: (item.Ten_donvi || "").trim(),
+        });
+
+        if (exists) {
           updatedCount++;
         } else {
-          database.DS_TB_MUCTIEU.push({
-            So_thue_bao: cleanPhone,
-            Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim(),
-            Ma_donvi: (item.Ma_donvi || "").trim(),
-            Ten_donvi: (item.Ten_donvi || "").trim(),
-          });
           insertedCount++;
         }
       }
 
+      database.DS_TB_MUCTIEU = Array.from(map.values());
       saveDatabase(database);
       return res.json({ success: true, updatedCount, insertedCount, total: database.DS_TB_MUCTIEU.length });
     } catch (err: any) {
@@ -250,6 +257,14 @@ async function startServer() {
       if (isFirstBatch) {
         database.KQ_CNTTTB = [];
       }
+
+      // Optimize list merge using a Map
+      const map = new Map<string, any>();
+      database.KQ_CNTTTB.forEach((u) => {
+        const phone = u.so_thue_bao.trim();
+        if (phone) map.set(phone, u);
+      });
+
       let insertedCount = 0;
       let updatedCount = 0;
 
@@ -258,25 +273,24 @@ async function startServer() {
         if (!rawPhone) continue;
 
         const cleanPhone = rawPhone;
-        const existingIndex = database.KQ_CNTTTB.findIndex((u) => u.so_thue_bao.trim() === cleanPhone);
+        const exists = map.has(cleanPhone);
 
-        const newRecord = {
+        map.set(cleanPhone, {
           so_thue_bao: cleanPhone,
           User_capnhat: String(item.User_capnhat || "").trim(),
           Ma_hrm_CN: String(item.Ma_hrm_CN || "").trim(),
           Kenh_CN: String(item.Kenh_CN || "").trim(),
           Ngay_CN: String(item.Ngay_CN || "").trim(),
-        };
+        });
 
-        if (existingIndex !== -1) {
-          database.KQ_CNTTTB[existingIndex] = newRecord;
+        if (exists) {
           updatedCount++;
         } else {
-          database.KQ_CNTTTB.push(newRecord);
           insertedCount++;
         }
       }
 
+      database.KQ_CNTTTB = Array.from(map.values());
       saveDatabase(database);
       return res.json({ success: true, updatedCount, insertedCount, total: database.KQ_CNTTTB.length });
     } catch (err: any) {

@@ -223,7 +223,7 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
           throw new Error("Không lọc được số điện thoại hợp lệ từ tệp đã tải lên. Vui lòng kiểm tra tiêu đề cột.");
         }
 
-        // Start batch upload in chunks of 500 records to prevent buffer overflow and show nice real-time progress bar
+        // Start batch upload in chunks of 2000 records (optimized for paid Cloudflare D1 plan) to make imports extremely fast
         setUploadProgress({
           status: 'uploading',
           percentage: 0,
@@ -232,7 +232,7 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
           message: `Bắt đầu cập nhật ${mappedRecords.length} dòng dữ liệu lên Cloud D1...`,
         });
 
-        const batchSize = 500;
+        const batchSize = 2000;
         const totalBatches = Math.ceil(mappedRecords.length / batchSize);
         
         // Backup to browser-only local storage database so that offline fallbacks always have latest imports
