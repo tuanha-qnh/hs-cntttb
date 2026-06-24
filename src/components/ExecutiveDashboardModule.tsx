@@ -176,6 +176,19 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   const totalRemaining = totalTarget - totalCompleted;
   const overallRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 1000) / 10 : 0;
 
+  // Calculate remaining days from today to 2026-08-21
+  const getDaysRemainingToDeadline = (): number => {
+    const today = new Date();
+    const d1 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const d2 = new Date(2026, 7, 21); // Month is 0-indexed (7 = August)
+    const diffTime = d2.getTime() - d1.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 1; // Safely default to 1 if on or after deadline
+  };
+
+  const daysRemaining = getDaysRemainingToDeadline();
+  const avgNeededPerDay = totalRemaining / daysRemaining;
+
   // -----------------------------------------------------------------
   // AGGREGATION BY UNITS
   // -----------------------------------------------------------------
@@ -1024,61 +1037,101 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             </div>
 
             {dailyViewMode === 'system' ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse font-sans text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
-                      <th className="py-2.5 px-4 w-12 text-center">STT</th>
-                      <th className="py-2.5 px-3 text-left">Ngày cập nhật sản lượng</th>
-                      <th className="py-2.5 px-4 text-center font-bold bg-blue-50/20 text-[#005BAA]">Đã cập nhật trong ngày (Tính từ NGAY_CN)</th>
-                      <th className="py-2.5 px-3 text-center">Tổng lũy kế đã hoàn thành phát sinh đến Ngày</th>
-                      <th className="py-2.5 px-3 text-center">Đánh giá tốc độ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-150/60">
-                    {systemDailyReport.filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate).length > 0 ? (
-                      [...systemDailyReport]
-                        .filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate)
-                        .reverse()
-                        .map((day, dIdx) => {
-                          const scoreLabel = day.dailyDiff >= 100 ? "Tốc độ Đột phá" : day.dailyDiff >= 20 ? "Tốc độ Ổn định" : "Cần đẩy mạnh";
-                          const scoreColor = day.dailyDiff >= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-150" :
-                                             day.dailyDiff >= 20 ? "bg-indigo-50 text-indigo-700 border-indigo-150" :
-                                             "bg-amber-50 text-amber-700 border-amber-150";
-                          return (
-                            <tr key={day.date} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="py-3 px-4 font-mono text-center text-slate-400">{dIdx + 1}</td>
-                              <td className="py-3 px-3 font-semibold text-slate-800 flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400 font-bold" />
-                                {day.formattedDate}
-                                {selectedDailyDate === 'all' && dIdx === 0 && (
-                                  <span className="bg-red-100 text-red-800 font-black text-[8px] px-1.5 py-0.5 rounded font-mono tracking-wider animate-pulse">LATEST</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
-                                <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
-                                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
-                                  +{formatNumber(day.dailyDiff)} thuê bao
-                                </div>
-                              </td>
-                              <td className="py-3 px-3 text-center font-mono text-slate-700 font-bold">{formatNumber(day.cumulativeToday)} thuê bao</td>
-                              <td className="py-3 px-3 text-center">
-                                <span className={`text-[9px] font-black uppercase text-center border px-2 py-0.5 rounded-full ${scoreColor}`}>
-                                  {scoreLabel}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-400 italic font-sans text-xs">
-                          Chưa ghi nhận số liệu cập nhật khớp ngày nào. Hãy hoàn tất nhập thêm dữ liệu cập nhật để hiển thị.
-                        </td>
+              <div className="space-y-4">
+                {/* Banner thông tin tính toán chỉ tiêu tốc độ */}
+                <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <TrendingUp className="w-4 h-4 text-[#005BAA]" />
+                    <div>
+                      <span>Thời gian đến hạn rà soát (<strong>21/08/2026</strong>): Còn lại <strong>{daysRemaining} ngày</strong>. </span>
+                      <span>Tổng tồn hiện tại: <strong>{formatNumber(totalRemaining)}</strong> thuê bao.</span>
+                    </div>
+                  </div>
+                  <div className="bg-[#005BAA]/10 border border-[#005BAA]/20 rounded-lg px-2.5 py-1 text-[#005BAA] font-extrabold font-mono text-center">
+                    Bình quân cần đạt: {formatNumber(Math.ceil(avgNeededPerDay))} TB / Ngày
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse font-sans text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                        <th className="py-2.5 px-4 w-12 text-center">STT</th>
+                        <th className="py-2.5 px-3 text-left">Ngày cập nhật sản lượng</th>
+                        <th className="py-2.5 px-4 text-center font-bold bg-blue-50/20 text-[#005BAA]">Đã cập nhật trong ngày (Tính từ NGAY_CN)</th>
+                        <th className="py-2.5 px-3 text-center">Tổng lũy kế đã hoàn thành phát sinh đến Ngày</th>
+                        <th className="py-2.5 px-3 text-center">Đánh giá tốc độ</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150/60">
+                      {systemDailyReport.filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate).length > 0 ? (
+                        (() => {
+                          const filtered = [...systemDailyReport]
+                            .filter(d => selectedDailyDate === 'all' || d.date === selectedDailyDate)
+                            .reverse();
+                          const displayed = selectedDailyDate === 'all' ? filtered.slice(0, 3) : filtered;
+                          return displayed.map((day, dIdx) => {
+                            const r = day.dailyDiff;
+                            const a = avgNeededPerDay;
+                            let scoreLabel = "";
+                            let scoreColor = "";
+
+                            if (totalRemaining <= 0) {
+                              scoreLabel = "Đạt yêu cầu";
+                              scoreColor = "bg-emerald-50 text-emerald-700 border-emerald-150";
+                            } else {
+                              if (r < a) {
+                                scoreLabel = "Không đạt yêu cầu";
+                                scoreColor = "bg-rose-50 text-rose-700 border-rose-150";
+                              } else if (r > 1.1 * a) {
+                                scoreLabel = "Kết quả rất tốt";
+                                scoreColor = "bg-emerald-50 text-emerald-700 border-emerald-150 animate-pulse";
+                              } else {
+                                scoreLabel = "Đạt yêu cầu";
+                                scoreColor = "bg-indigo-50 text-indigo-700 border-indigo-150";
+                              }
+                            }
+                            return (
+                              <tr key={day.date} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="py-3 px-4 font-mono text-center text-slate-400">{dIdx + 1}</td>
+                                <td className="py-3 px-3 font-semibold text-slate-800 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 font-bold" />
+                                  {day.formattedDate}
+                                  {selectedDailyDate === 'all' && dIdx === 0 && (
+                                    <span className="bg-red-100 text-red-800 font-black text-[8px] px-1.5 py-0.5 rounded font-mono tracking-wider animate-pulse">LATEST</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono bg-blue-50/5">
+                                  <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100/70 px-2.5 py-1 rounded-xl shadow-xs">
+                                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 font-bold" />
+                                    +{formatNumber(day.dailyDiff)} thuê bao
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center font-mono text-slate-700 font-bold">{formatNumber(day.cumulativeToday)} thuê bao</td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className={`text-[9px] font-black uppercase text-center border px-2.5 py-1 rounded-full ${scoreColor}`}>
+                                    {scoreLabel}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-400 italic font-sans text-xs">
+                            Chưa ghi nhận số liệu cập nhật khớp ngày nào. Hãy hoàn tất nhập thêm dữ liệu cập nhật để hiển thị.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                  {selectedDailyDate === 'all' && systemDailyReport.length > 3 && (
+                    <p className="text-[10px] text-slate-400 font-sans italic mt-2.5 text-right">
+                      * Đang hiển thị tối đa 3 ngày gần nhất theo yêu cầu. Để xem tất cả, vui lòng lọc từng ngày cụ thể trên thanh công cụ.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               // Units View Mode
