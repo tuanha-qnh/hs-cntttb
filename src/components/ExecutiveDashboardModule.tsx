@@ -16,6 +16,10 @@ interface UnifiedRecord {
   Tap_thue_bao: string;
   Ma_donvi?: string | null;
   Ten_donvi?: string | null;
+  Loai_TB?: string | null;
+  Hinh_thuc?: string | null;
+  Dthu_T4?: number | null;
+  Muc_DT?: string | null;
   IsUpdated: boolean;
   User_capnhat?: string | null;
   Ma_hrm_CN?: string | null;

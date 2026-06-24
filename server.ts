@@ -30,6 +30,10 @@ async function startServer() {
       Tap_thue_bao: string;
       Ma_donvi?: string;
       Ten_donvi?: string;
+      Loai_TB?: string;
+      Hinh_thuc?: string;
+      Dthu_T4?: number;
+      Muc_DT?: string;
     }>;
     KQ_CNTTTB: Array<{
       so_thue_bao: string;
@@ -113,6 +117,10 @@ async function startServer() {
         Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
         Ma_donvi: mucTieuRecord ? mucTieuRecord.Ma_donvi : null,
         Ten_donvi: mucTieuRecord ? mucTieuRecord.Ten_donvi : null,
+        Loai_TB: mucTieuRecord ? (mucTieuRecord.Loai_TB || null) : null,
+        Hinh_thuc: mucTieuRecord ? (mucTieuRecord.Hinh_thuc || null) : null,
+        Dthu_T4: mucTieuRecord ? (mucTieuRecord.Dthu_T4 ? Number(mucTieuRecord.Dthu_T4) : 0) : null,
+        Muc_DT: mucTieuRecord ? (mucTieuRecord.Muc_DT || null) : null,
         IsUpdated: !!ketQuaRecord,
         User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
         Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
@@ -154,6 +162,10 @@ async function startServer() {
           Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
           Ma_donvi: item.Ma_donvi || null,
           Ten_donvi: item.Ten_donvi || null,
+          Loai_TB: item.Loai_TB || null,
+          Hinh_thuc: item.Hinh_thuc || null,
+          Dthu_T4: item.Dthu_T4 ? Number(item.Dthu_T4) : 0,
+          Muc_DT: item.Muc_DT || null,
           IsUpdated: !!kq,
           User_capnhat: kq ? kq.User_capnhat : null,
           Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -224,6 +236,10 @@ async function startServer() {
           Tap_thue_bao: (item.Tap_thue_bao || "Mặc định").trim(),
           Ma_donvi: (item.Ma_donvi || "").trim(),
           Ten_donvi: (item.Ten_donvi || "").trim(),
+          Loai_TB: (item.Loai_TB || "").trim(),
+          Hinh_thuc: (item.Hinh_thuc || "").trim(),
+          Dthu_T4: item.Dthu_T4 ? Number(item.Dthu_T4) : 0,
+          Muc_DT: (item.Muc_DT || "").trim(),
         });
 
         if (exists) {

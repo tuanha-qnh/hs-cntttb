@@ -135,17 +135,25 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
         const mappedRecords: any[] = [];
 
         if (activeImportType === 'muctieu') {
-          // Fields: So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi
+          // Fields: So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi, Loai_TB, Hinh_thuc, Dthu_T4, Muc_DT
           for (const row of rawRows) {
             const phoneKey = findKey(row, ['so_thue_bao', 'so_dien_thoai', 'phoneNumber', 'sdt', 'so thue bao']);
             const groupKey = findKey(row, ['tap_thue_bao', 'tap', 'group', 'category', 'tap thue bao']);
             const unitCodeKey = findKey(row, ['ma_donvi', 'ma_dv', 'unitid', 'ma_don_vi', 'ma don vi', 'ma dv', 'madonvi']);
             const unitNameKey = findKey(row, ['ten_donvi', 'ten_dv', 'unitname', 'ten_don_vi', 'ten don vi', 'ten dv', 'don vi', 'don_vi', 'tendonvi']);
+            const loaiTbKey = findKey(row, ['loai_tb', 'loai_thue_bao', 'loaitb', 'loai thue bao', 'loai_hinh_thue_bao', 'loai tb']);
+            const hinhThucKey = findKey(row, ['hinh_thuc', 'hinh_thuc_dau_noi', 'hinhthuc', 'hinh thuc']);
+            const dthuT4Key = findKey(row, ['dthu_t4', 'doanh_thu', 'doanh_thu_t4', 'dthu', 'doanh thu', 'dthut4', 'dt_t4', 'dthuthang4', 'dthu t4']);
+            const mucDtKey = findKey(row, ['muc_dt', 'muc_doanh_thu', 'mucdt', 'muc doanh thu', 'muc dt']);
 
             const sdt = phoneKey ? String(row[phoneKey]).trim() : '';
             const tap = groupKey ? String(row[groupKey]).trim() : 'Mặc định';
             const ma_dv = unitCodeKey ? String(row[unitCodeKey]).trim() : '';
             const ten_dv = unitNameKey ? String(row[unitNameKey]).trim() : '';
+            const loai_tb = loaiTbKey ? String(row[loaiTbKey]).trim() : '';
+            const hinh_thuc = hinhThucKey ? String(row[hinhThucKey]).trim() : '';
+            const dthu_t4 = dthuT4Key ? Number(row[dthuT4Key]) : 0;
+            const muc_dt = mucDtKey ? String(row[mucDtKey]).trim() : '';
 
             if (sdt) {
               mappedRecords.push({
@@ -153,6 +161,10 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
                 Tap_thue_bao: tap,
                 Ma_donvi: ma_dv,
                 Ten_donvi: ten_dv,
+                Loai_TB: loai_tb,
+                Hinh_thuc: hinh_thuc,
+                Dthu_T4: isNaN(dthu_t4) ? 0 : dthu_t4,
+                Muc_DT: muc_dt,
               });
             }
           }
@@ -372,7 +384,7 @@ export default function DataImportModule({ currentUser, cloudflareConfig }: Data
             <h4 className="text-xs font-bold text-slate-900 uppercase">Tập thuê bao mục tiêu</h4>
             <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
               Bảng dữ liệu: <b>DS_TB_MUCTIEU</b>.<br />
-              Cấu trúc: <b>So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi</b>.
+              Cấu trúc: <b>So_thue_bao (SĐT), Tap_thue_bao, Ma_donvi, Ten_donvi, Loai_TB, Hinh_thuc, Dthu_T4, Muc_DT</b>.
             </p>
           </div>
         </button>

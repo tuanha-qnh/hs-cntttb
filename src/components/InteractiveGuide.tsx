@@ -75,7 +75,11 @@ CREATE TABLE IF NOT EXISTS DS_TB_MUCTIEU (
   So_thue_bao TEXT PRIMARY KEY,
   Tap_thue_bao TEXT NOT NULL,
   Ma_donvi TEXT,
-  Ten_donvi TEXT
+  Ten_donvi TEXT,
+  Loai_TB TEXT,
+  Hinh_thuc TEXT,
+  Dthu_T4 INTEGER,
+  Muc_DT TEXT
 );
 
 -- 5. TẠO BẢNG KẾT QUẢ CẬP NHẬT TTTB CSDL D1
@@ -357,10 +361,14 @@ export default {
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           const ma_dv = String(item.Ma_donvi || "").trim();
           const ten_dv = String(item.Ten_donvi || "").trim();
+          const loai_tb = String(item.Loai_TB || "").trim();
+          const hinh_thuc = String(item.Hinh_thuc || "").trim();
+          const dthu_t4 = item.Dthu_T4 ? Number(item.Dthu_T4) : 0;
+          const muc_dt = String(item.Muc_DT || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4)"
-            ).bind(sdt, tap, ma_dv, ten_dv)
+              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi, Loai_TB, Hinh_thuc, Dthu_T4, Muc_DT) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            ).bind(sdt, tap, ma_dv, ten_dv, loai_tb, hinh_thuc, dthu_t4, muc_dt)
           );
         }
 
@@ -455,6 +463,10 @@ export default {
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
             Ma_donvi: item.Ma_donvi || null,
             Ten_donvi: item.Ten_donvi || null,
+            Loai_TB: item.Loai_TB || null,
+            Hinh_thuc: item.Hinh_thuc || null,
+            Dthu_T4: item.Dthu_T4 ? Number(item.Dthu_T4) : 0,
+            Muc_DT: item.Muc_DT || null,
             IsUpdated: !!kq,
             User_capnhat: kq ? kq.User_capnhat : null,
             Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -529,6 +541,10 @@ export default {
           Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
           Ma_donvi: mucTieuRecord ? mucTieuRecord.Ma_donvi : null,
           Ten_donvi: mucTieuRecord ? mucTieuRecord.Ten_donvi : null,
+          Loai_TB: mucTieuRecord ? (mucTieuRecord.Loai_TB || null) : null,
+          Hinh_thuc: mucTieuRecord ? (mucTieuRecord.Hinh_thuc || null) : null,
+          Dthu_T4: mucTieuRecord ? (mucTieuRecord.Dthu_T4 ? Number(mucTieuRecord.Dthu_T4) : 0) : null,
+          Muc_DT: mucTieuRecord ? (mucTieuRecord.Muc_DT || null) : null,
           IsUpdated: !!ketQuaRecord,
           User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
           Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
@@ -821,10 +837,14 @@ export default {
           const tap = String(item.Tap_thue_bao || "Mặc định").trim();
           const ma_dv = String(item.Ma_donvi || "").trim();
           const ten_dv = String(item.Ten_donvi || "").trim();
+          const loai_tb = String(item.Loai_TB || "").trim();
+          const hinh_thuc = String(item.Hinh_thuc || "").trim();
+          const dthu_t4 = item.Dthu_T4 ? Number(item.Dthu_T4) : 0;
+          const muc_dt = String(item.Muc_DT || "").trim();
           statements.push(
             env.DB.prepare(
-              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi) VALUES (?1, ?2, ?3, ?4)"
-            ).bind(sdt, tap, ma_dv, ten_dv)
+              "INSERT OR REPLACE INTO DS_TB_MUCTIEU (So_thue_bao, Tap_thue_bao, Ma_donvi, Ten_donvi, Loai_TB, Hinh_thuc, Dthu_T4, Muc_DT) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            ).bind(sdt, tap, ma_dv, ten_dv, loai_tb, hinh_thuc, dthu_t4, muc_dt)
           );
         }
 
@@ -918,6 +938,10 @@ export default {
             Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
             Ma_donvi: item.Ma_donvi || null,
             Ten_donvi: item.Ten_donvi || null,
+            Loai_TB: item.Loai_TB || null,
+            Hinh_thuc: item.Hinh_thuc || null,
+            Dthu_T4: item.Dthu_T4 ? Number(item.Dthu_T4) : 0,
+            Muc_DT: item.Muc_DT || null,
             IsUpdated: !!kq,
             User_capnhat: kq ? kq.User_capnhat : null,
             Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -992,6 +1016,10 @@ export default {
           Tap_thue_bao: mucTieuRecord ? mucTieuRecord.Tap_thue_bao : "Đồng bộ tự động",
           Ma_donvi: mucTieuRecord ? mucTieuRecord.Ma_donvi : null,
           Ten_donvi: mucTieuRecord ? mucTieuRecord.Ten_donvi : null,
+          Loai_TB: mucTieuRecord ? (mucTieuRecord.Loai_TB || null) : null,
+          Hinh_thuc: mucTieuRecord ? (mucTieuRecord.Hinh_thuc || null) : null,
+          Dthu_T4: mucTieuRecord ? (mucTieuRecord.Dthu_T4 ? Number(mucTieuRecord.Dthu_T4) : 0) : null,
+          Muc_DT: mucTieuRecord ? (mucTieuRecord.Muc_DT || null) : null,
           IsUpdated: !!ketQuaRecord,
           User_capnhat: ketQuaRecord ? ketQuaRecord.User_capnhat : null,
           Ma_hrm_CN: ketQuaRecord ? ketQuaRecord.Ma_hrm_CN : null,
@@ -1193,7 +1221,11 @@ CREATE TABLE DS_TB_MUCTIEU (
   So_thue_bao TEXT PRIMARY KEY,
   Tap_thue_bao TEXT NOT NULL,
   Ma_donvi TEXT,
-  Ten_donvi TEXT
+  Ten_donvi TEXT,
+  Loai_TB TEXT,
+  Hinh_thuc TEXT,
+  Dthu_T4 INTEGER,
+  Muc_DT TEXT
 );
 
 DROP TABLE IF EXISTS subscribers;

@@ -15,6 +15,10 @@ interface UnifiedRecord {
   Tap_thue_bao: string;
   Ma_donvi?: string | null;
   Ten_donvi?: string | null;
+  Loai_TB?: string | null;
+  Hinh_thuc?: string | null;
+  Dthu_T4?: number | null;
+  Muc_DT?: string | null;
   IsUpdated: boolean;
   User_capnhat?: string | null;
   Ma_hrm_CN?: string | null;
@@ -407,6 +411,34 @@ export default function SubscriberUpdateLookupModule({ cloudflareConfig }: Subsc
                           <div>
                             <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Tên đơn vị phụ trách</span>
                             <p className="font-sans font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Ten_donvi}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(lookupResult.Loai_TB || lookupResult.Hinh_thuc || lookupResult.Dthu_T4 !== undefined || lookupResult.Muc_DT) && (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-slate-100">
+                        {lookupResult.Loai_TB && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Loại thuê bao</span>
+                            <p className="font-sans font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Loai_TB}</p>
+                          </div>
+                        )}
+                        {lookupResult.Hinh_thuc && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Hình thức</span>
+                            <p className="font-sans font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Hinh_thuc}</p>
+                          </div>
+                        )}
+                        {lookupResult.Dthu_T4 !== undefined && lookupResult.Dthu_T4 !== null && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Doanh thu T4</span>
+                            <p className="font-mono font-bold text-emerald-600 text-xs mt-0.5">{Number(lookupResult.Dthu_T4).toLocaleString('vi-VN')} đ</p>
+                          </div>
+                        )}
+                        {lookupResult.Muc_DT && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Mức DT</span>
+                            <p className="font-sans font-bold text-slate-700 text-xs mt-0.5">{lookupResult.Muc_DT}</p>
                           </div>
                         )}
                       </div>
