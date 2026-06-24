@@ -156,7 +156,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   });
 
   // -----------------------------------------------------------------
-  // STATISTICS BY GROUPS
+  // STATISTICS BY GROUPS & REVENUE
   // -----------------------------------------------------------------
   const groupStats = {
     'KHDN': { total: 0, completed: 0 },
@@ -164,6 +164,9 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     'CCCD 12 số': { total: 0, completed: 0 },
     'Sai giấy tờ': { total: 0, completed: 0 }
   };
+
+  let totalTargetRevenue = 0;
+  let totalCompletedRevenue = 0;
 
   dashboardRecords.forEach(r => {
     const groupName = classifyGroup(r.Tap_thue_bao);
@@ -173,7 +176,15 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
         groupStats[groupName].completed++;
       }
     }
+    const rev = r.Dthu_T4 ? Number(r.Dthu_T4) : 0;
+    totalTargetRevenue += rev;
+    if (r.IsUpdated) {
+      totalCompletedRevenue += rev;
+    }
   });
+
+  const totalUncompletedRevenue = totalTargetRevenue - totalCompletedRevenue;
+  const overallRevenueRate = totalTargetRevenue > 0 ? Math.round((totalCompletedRevenue / totalTargetRevenue) * 1000) / 10 : 0;
 
   const totalTarget = dashboardRecords.length;
   const totalCompleted = dashboardRecords.filter(r => r.IsUpdated).length;
@@ -196,7 +207,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   // -----------------------------------------------------------------
   // AGGREGATION BY UNITS
   // -----------------------------------------------------------------
-  // Unit key is code, value holds name, totals, and separate group statistics
+  // Unit key is code, value holds name, totals, separate group statistics, and revenue metrics
   const unitMap: Record<string, {
     code: string;
     name: string;
@@ -204,12 +215,16 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     completed: number;
     remaining: number;
     groups: Record<string, { total: number; completed: number }>;
+    targetRevenue: number;
+    completedRevenue: number;
+    uncompletedRevenue: number;
   }> = {};
 
   dashboardRecords.forEach(r => {
     const code = (r.Ma_donvi || 'N/A').trim();
     const name = (r.Ten_donvi || 'Đơn vị chưa xác định / Phát sinh ngoài tập').trim();
     const groupName = classifyGroup(r.Tap_thue_bao);
+    const revenue = r.Dthu_T4 ? Number(r.Dthu_T4) : 0;
 
     if (!unitMap[code]) {
       unitMap[code] = {
@@ -223,7 +238,10 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
           'CMND 9 số': { total: 0, completed: 0 },
           'CCCD 12 số': { total: 0, completed: 0 },
           'Sai giấy tờ': { total: 0, completed: 0 }
-        }
+        },
+        targetRevenue: 0,
+        completedRevenue: 0,
+        uncompletedRevenue: 0,
       };
     }
 
@@ -233,6 +251,14 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
       unitMap[code].completed++;
     } else {
       unitMap[code].remaining++;
+    }
+
+    // Accumulate revenue
+    unitMap[code].targetRevenue += revenue;
+    if (r.IsUpdated) {
+      unitMap[code].completedRevenue += revenue;
+    } else {
+      unitMap[code].uncompletedRevenue += revenue;
     }
 
     // Acc group
@@ -247,7 +273,8 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   // Convert map to list and filter
   const unitList = Object.values(unitMap).map(unit => {
     const rate = unit.total > 0 ? Math.round((unit.completed / unit.total) * 100) : 0;
-    return { ...unit, rate };
+    const revenueRate = unit.targetRevenue > 0 ? Math.round((unit.completedRevenue / unit.targetRevenue) * 1000) / 10 : 0;
+    return { ...unit, rate, revenueRate };
   });
 
   // Apply search term and dynamic filters
@@ -949,6 +976,165 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
 
               <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 italic">
                 Bảng xếp hạng cập nhật thời gian thực dựa trên kết quả đạt của cả 9 Đơn vị.
+              </div>
+            </div>
+          </div>
+
+          {/* PHÂN TÍCH & ĐÁNH GIÁ TIẾN ĐỘ DOANH THU */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left Column: Biểu đồ tỷ lệ hoàn thành doanh thu của toàn tỉnh và từng đơn vị */}
+            <div className="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 mb-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                      Biểu đồ & Đánh giá tỷ lệ hoàn thành doanh thu
+                    </h3>
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-mono font-bold">Đồng bộ từ Dthu_T4</span>
+                </div>
+
+                {/* Toàn tỉnh summary card */}
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-4 mb-5">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">TIẾN ĐỘ DOANH THU TOÀN TỈNH</span>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <span className="text-3xl font-black text-emerald-700 font-mono leading-none">{overallRevenueRate}%</span>
+                        <span className="text-[10px] text-emerald-605 font-sans font-semibold">
+                          (Đã đạt {formatNumber(totalCompletedRevenue)} đ / {formatNumber(totalTargetRevenue)} đ)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                        overallRevenueRate >= 80 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                        overallRevenueRate >= 50 ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                        'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}>
+                        {overallRevenueRate >= 80 ? 'Hoàn thành Tốt' : overallRevenueRate >= 50 ? 'Tiến độ Đạt' : 'Cần Đẩy Mạnh'}
+                      </span>
+                      <span className="text-[9px] text-slate-450 mt-1 font-medium">Tổng tồn: {formatNumber(totalUncompletedRevenue)} đ</span>
+                    </div>
+                  </div>
+
+                  {/* Province progress bar */}
+                  <div className="w-full h-3 bg-white border border-emerald-200/50 rounded-full overflow-hidden mt-3 shadow-2xs">
+                    <div 
+                      className="h-full bg-linear-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+                      style={{ width: `${overallRevenueRate}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Từng đơn vị progress list */}
+                <div className="space-y-3.5">
+                  <span className="text-[10px] font-bold text-slate-400 font-sans uppercase tracking-wider block">
+                    Chi tiết tỷ lệ hoàn thành doanh thu từng Đơn vị
+                  </span>
+
+                  <div className="space-y-2.5 max-h-[290px] overflow-y-auto pr-1">
+                    {[...unitList]
+                      .filter(u => u.total > 0)
+                      .sort((a, b) => b.revenueRate - a.revenueRate) // Sort by revenue rate descending
+                      .map((u, idx) => {
+                        const barColor = 
+                          u.revenueRate >= 80 ? 'bg-emerald-500' :
+                          u.revenueRate >= 50 ? 'bg-amber-500' :
+                          'bg-rose-500';
+
+                        return (
+                          <div key={u.code} className="border border-slate-100 rounded-xl p-2.5 hover:bg-slate-50/50 transition-all">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <div className="truncate pr-2">
+                                <span className="font-bold text-slate-850 text-[11px] block truncate">{u.name}</span>
+                                <span className="text-[9px] text-slate-400 font-mono block">Mã đơn vị: {u.code}</span>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-black font-mono text-slate-800 text-xs">{u.revenueRate}%</span>
+                                <span className="text-[9px] text-slate-400 block font-mono">
+                                  {formatNumber(u.completedRevenue)} / {formatNumber(u.targetRevenue)} đ
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Progress bar container */}
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-150/40">
+                              <div 
+                                className={`h-full ${barColor} rounded-full transition-all duration-300`}
+                                style={{ width: `${Math.min(u.revenueRate, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-400 italic mt-3">
+                Doanh thu hoàn thành tính trên các thuê bao thuộc danh sách mục tiêu có trạng thái cập nhật (IsUpdated = true).
+              </div>
+            </div>
+
+            {/* Right Column: Bảng tổng doanh thu của tập thuê bao chưa cập nhật của từng đơn vị */}
+            <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Grid className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                      Doanh thu chưa cập nhật theo Đơn vị
+                    </h3>
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-mono font-bold">Còn lại cần rà soát</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse font-sans text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                        <th className="py-2 px-2 text-center">STT</th>
+                        <th className="py-2 px-2">Đơn vị</th>
+                        <th className="py-2 px-2 text-right">Doanh thu tồn</th>
+                        <th className="py-2 px-2 text-center">Thuê bao tồn</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {[...unitList]
+                        .filter(u => u.total > 0)
+                        .sort((a, b) => b.uncompletedRevenue - a.uncompletedRevenue) // Sort by uncompleted revenue descending
+                        .map((u, idx) => {
+                          return (
+                            <tr key={u.code} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="py-2 px-2 text-center font-mono text-slate-400 text-[10px]">{idx + 1}</td>
+                              <td className="py-2 px-2">
+                                <p className="font-bold text-slate-850 text-[10px] leading-tight truncate max-w-[140px]">{u.name}</p>
+                                <span className="text-[8px] font-mono text-slate-400 block uppercase">Mã: {u.code}</span>
+                              </td>
+                              <td className="py-2 px-2 text-right font-bold font-mono text-amber-600 text-[11px]">
+                                {formatNumber(u.uncompletedRevenue)} đ
+                              </td>
+                              <td className="py-2 px-2 text-center font-semibold font-mono text-slate-500 text-[10px]">
+                                {formatNumber(u.remaining)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      {unitList.filter(u => u.total > 0).length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-center text-slate-400 italic">
+                            Chưa có thông tin doanh thu đơn vị.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 italic mt-3">
+                Bảng số liệu sắp xếp theo tổng doanh thu chưa cập nhật giảm dần, hỗ trợ ưu tiên phân bổ nguồn lực rà soát.
               </div>
             </div>
           </div>
