@@ -864,10 +864,8 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 {/* Level list with dual indicators */}
                 <div className="space-y-3">
                   {mucDtStats.map((item) => {
-                    const maxOutstandingCount = Math.max(...mucDtStats.map(s => s.outstandingCount), 1);
-                    const maxOutstandingRevenue = Math.max(...mucDtStats.map(s => s.outstandingRevenue), 1);
-                    const countPercent = Math.min((item.outstandingCount / maxOutstandingCount) * 100, 100);
-                    const revenuePercent = Math.min((item.outstandingRevenue / maxOutstandingRevenue) * 100, 100);
+                    const countPercent = item.totalCount > 0 ? (item.outstandingCount / item.totalCount) * 100 : 0;
+                    const revenuePercent = item.totalRevenue > 0 ? (item.outstandingRevenue / item.totalRevenue) * 100 : 0;
                     
                     return (
                       <div key={item.level} className="p-3 bg-slate-50/40 hover:bg-slate-50 border border-slate-100/80 rounded-xl transition-all space-y-2">
@@ -891,7 +889,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           {/* Count bar */}
                           <div className="space-y-0.5">
                             <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                              <span>Tỷ trọng số lượng tồn</span>
+                              <span>Tỷ lệ tồn thuê bao</span>
                               <span className="font-mono text-amber-750 font-bold">{Math.round(countPercent)}%</span>
                             </div>
                             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
@@ -905,7 +903,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           {/* Revenue bar */}
                           <div className="space-y-0.5">
                             <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                              <span>Tỷ trọng doanh thu tồn</span>
+                              <span>Tỷ lệ tồn doanh thu</span>
                               <span className="font-mono text-rose-750 font-bold">{Math.round(revenuePercent)}%</span>
                             </div>
                             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
