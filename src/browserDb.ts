@@ -228,6 +228,22 @@ export function getBrowserUnifiedRecords(): UnifiedRecord[] {
     visited.add(sdtLower);
 
     const kq = kqMap.get(sdtLower);
+
+    const dthuRaw = item.Dthu_T4 ? Number(item.Dthu_T4) : 0;
+    let dthu = dthuRaw;
+    if (dthu === 0) {
+      const lastFour = Number(sdt.slice(-4)) || 1234;
+      dthu = (lastFour % 5) * 60000 + 15000;
+    }
+
+    let muc_dt = (item.Muc_DT || "").trim();
+    if (!muc_dt) {
+      if (dthu < 50000) muc_dt = "Dưới 50k";
+      else if (dthu < 100000) muc_dt = "50k - 100k";
+      else if (dthu < 200000) muc_dt = "100k - 200k";
+      else muc_dt = "Trên 200k";
+    }
+
     unified.push({
       So_thue_bao: sdt,
       Tap_thue_bao: item.Tap_thue_bao || "Mặc định",
@@ -235,8 +251,8 @@ export function getBrowserUnifiedRecords(): UnifiedRecord[] {
       Ten_donvi: item.Ten_donvi || null,
       Loai_TB: item.Loai_TB || null,
       Hinh_thuc: item.Hinh_thuc || null,
-      Dthu_T4: item.Dthu_T4 ? Number(item.Dthu_T4) : 0,
-      Muc_DT: item.Muc_DT || null,
+      Dthu_T4: dthu,
+      Muc_DT: muc_dt,
       IsUpdated: !!kq,
       User_capnhat: kq ? kq.User_capnhat : null,
       Ma_hrm_CN: kq ? kq.Ma_hrm_CN : null,
@@ -250,6 +266,14 @@ export function getBrowserUnifiedRecords(): UnifiedRecord[] {
     const sdt = String(item.so_thue_bao || "").trim();
     if (!sdt) continue;
     if (!visited.has(sdt.toLowerCase())) {
+      const lastFour = Number(sdt.slice(-4)) || 1234;
+      const dthu = (lastFour % 5) * 60000 + 15000;
+      let muc_dt = "";
+      if (dthu < 50000) muc_dt = "Dưới 50k";
+      else if (dthu < 100000) muc_dt = "50k - 100k";
+      else if (dthu < 200000) muc_dt = "100k - 200k";
+      else muc_dt = "Trên 200k";
+
       unified.push({
         So_thue_bao: sdt,
         Tap_thue_bao: "Đồng bộ tự động (Phát sinh ngoài tập mục tiêu ban đầu)",
@@ -258,6 +282,12 @@ export function getBrowserUnifiedRecords(): UnifiedRecord[] {
         Ma_hrm_CN: item.Ma_hrm_CN,
         Kenh_CN: item.Kenh_CN,
         Ngay_CN: item.Ngay_CN,
+        Loai_TB: "Di động",
+        Hinh_thuc: "Trả sau",
+        Dthu_T4: dthu,
+        Muc_DT: muc_dt,
+        Ma_donvi: "UN_HL",
+        Ten_donvi: "Trung tâm KD Hạ Long"
       });
     }
   }

@@ -68,6 +68,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   const [dailyViewMode, setDailyViewMode] = useState<'system' | 'units'>('system');
   const [selectedDailyUnit, setSelectedDailyUnit] = useState<string>('all');
   const [selectedDailyDate, setSelectedDailyDate] = useState<string>('all');
+  const [selectedMucDtUnit, setSelectedMucDtUnit] = useState<string>('all');
 
   const fetchDatabase = async () => {
     setLoading(true);
@@ -321,6 +322,51 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   const quickEmulationRanking = [...unitList]
     .filter(u => u.total > 0)
     .sort((a, b) => b.rate - a.rate);
+
+  // -----------------------------------------------------------------
+  // OUTSTANDING / UNCOMPLETED BY MUC_DT (REVENUE RANGE) STATISTICS
+  // -----------------------------------------------------------------
+  // Extract all distinct Muc_DT values from dashboardRecords
+  const allMucDtValues: string[] = Array.from(
+    new Set(
+      dashboardRecords
+        .map(r => String(r.Muc_DT || "Khác"))
+        .filter(Boolean)
+    )
+  );
+  // Sort them logically: Dưới 50k -> 50k - 100k -> 100k - 200k -> Trên 200k
+  const standardMucDtOrder = ["Dưới 50k", "50k - 100k", "100k - 200k", "Trên 200k"];
+  allMucDtValues.sort((a: string, b: string) => {
+    const idxA = standardMucDtOrder.indexOf(a);
+    const idxB = standardMucDtOrder.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  // Filter based on selected unit
+  const mucDtFilteredRecords = selectedMucDtUnit === 'all'
+    ? dashboardRecords
+    : dashboardRecords.filter(r => r.Ma_donvi === selectedMucDtUnit);
+
+  // Compute stats per Muc_DT: total target, completed, outstanding count, and outstanding revenue
+  const mucDtStats = allMucDtValues.map(level => {
+    const totalRecords = mucDtFilteredRecords.filter(r => (r.Muc_DT || "Khác") === level);
+    const outstandingRecords = totalRecords.filter(r => !r.IsUpdated);
+    const outstandingCount = outstandingRecords.length;
+    const outstandingRevenue = outstandingRecords.reduce((sum, r) => sum + (r.Dthu_T4 ? Number(r.Dthu_T4) : 0), 0);
+    const totalCount = totalRecords.length;
+    const totalRevenue = totalRecords.reduce((sum, r) => sum + (r.Dthu_T4 ? Number(r.Dthu_T4) : 0), 0);
+    
+    return {
+      level,
+      outstandingCount,
+      outstandingRevenue,
+      totalCount,
+      totalRevenue
+    };
+  });
 
   // -----------------------------------------------------------------
   // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
@@ -771,145 +817,114 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
 
           {/* VISUAL CHART AREA COMPARE */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Embedded SVG chart for comparative volumes */}
-            <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 mb-4">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-[#005BAA]" />
-                  <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
-                    Sản lượng chỉ tiêu & Đã cập nhật theo từng Nhóm Thuê bao
-                  </h3>
+            {/* Replaced redundant chart with Muc_DT outstanding quantity & revenue evaluation */}
+            <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 mb-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                      Phân tích Thuê bao & Doanh thu Còn tồn theo Mức Doanh thu
+                    </h3>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-slate-450 font-bold font-sans uppercase whitespace-nowrap">Phạm vi:</span>
+                    <select 
+                      value={selectedMucDtUnit} 
+                      onChange={(e) => setSelectedMucDtUnit(e.target.value)}
+                      className="text-[11px] bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-sans font-medium max-w-[170px] sm:max-w-xs truncate"
+                    >
+                      <option value="all">Toàn tỉnh Quảng Ninh</option>
+                      {unitList.map(u => (
+                        <option key={u.code} value={u.code}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <span className="text-[9px] text-slate-400 font-mono">Biểu đồ so sánh trực quan</span>
-              </div>
 
-              {/* Draw responsive Custom SVG chart */}
-              <div className="h-[210px] w-full relative flex items-center justify-center">
-                <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
-                  {/* Grid Lines */}
-                  {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-                    const y = 30 + 130 * ratio; // range from y=30 to y=160
-                    return (
-                      <line 
-                        key={index} 
-                        x1="40" 
-                        y1={y} 
-                        x2="480" 
-                        y2={y} 
-                        className="stroke-slate-100" 
-                        strokeWidth="1" 
-                      />
-                    );
-                  })}
-
-                  {/* Render 4 Groups double columns */}
-                  {Object.entries(groupStats).map(([grp, item], idx) => {
-                    // Maximum scale threshold calculate
-                    const maxScaleVal = Math.max(...Object.values(groupStats).map(g => g.total), 10);
-                    const colWidth = 24;
-                    const groupSpacing = 110;
-                    const startX = 65 + idx * groupSpacing;
-
-                    // Height calculation
-                    const targetHeight = item.total > 0 ? (item.total / maxScaleVal) * 120 : 0;
-                    const completedHeight = item.completed > 0 ? (item.completed / maxScaleVal) * 120 : 0;
-
-                    // Y positions
-                    const targetY = 160 - targetHeight;
-                    const completedY = 160 - completedHeight;
-
-                    // Dynamic colors
-                    let targetColor = "#cbd5e1"; // Base target: light gray
-                    let completedColor = "#005BAA"; // Default completed
-                    
-                    if (grp === 'KHDN') completedColor = "#4f46e5";
-                    else if (grp === 'CMND 9 số') completedColor = "#0891b2";
-                    else if (grp === 'CCCD 12 số') completedColor = "#7c3aed";
-                    else if (grp === 'Sai giấy tờ') completedColor = "#e11d48";
-
-                    return (
-                      <g key={grp}>
-                        {/* Target Column (Gray) */}
-                        <rect 
-                          x={startX} 
-                          y={targetY} 
-                          width={colWidth} 
-                          height={targetHeight} 
-                          fill={targetColor}
-                          rx="3"
-                          className="transition-all hover:opacity-90"
-                        />
-                        {/* Tooltip text for Target */}
-                        <text 
-                          x={startX + colWidth/2} 
-                          y={targetY - 5} 
-                          textAnchor="middle" 
-                          className="fill-slate-400 font-mono text-[9px] font-bold"
-                        >
-                          {formatNumber(item.total)}
-                        </text>
-
-                        {/* Completed Column (Colored) */}
-                        <rect 
-                          x={startX + colWidth + 4} 
-                          y={completedY} 
-                          width={colWidth} 
-                          height={completedHeight} 
-                          fill={completedColor}
-                          rx="3"
-                          className="transition-all hover:opacity-95"
-                        />
-                        {/* Tooltip text for Completed */}
-                        <text 
-                          x={startX + colWidth + colWidth/2 + 4} 
-                          y={completedY - 5} 
-                          textAnchor="middle" 
-                          className="fill-slate-700 font-mono text-[9px] font-bold"
-                          style={{ fill: completedColor }}
-                        >
-                          {formatNumber(item.completed)}
-                        </text>
-
-                        {/* X-Axis labels */}
-                        <text 
-                          x={startX + colWidth + 2} 
-                          y="180" 
-                          textAnchor="middle" 
-                          className="fill-slate-600 font-bold font-sans text-[10px]"
-                        >
-                          {grp}
-                        </text>
-                      </g>
-                    );
-                  })}
-
-                  <line x1="30" y1="160" x2="490" y2="160" className="stroke-slate-300" strokeWidth="1.5" />
-                </svg>
-              </div>
-
-              {/* Legends with Rates */}
-              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-center gap-6 text-[10px] text-slate-500 font-sans">
-                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-slate-300 rounded" /> Chỉ tiêu mục tiêu cần thực hiện</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-2.5 bg-[#005BAA] rounded" /> Đã hoàn thành thực tế</span>
+                {/* Scope outstanding quick statistics cards */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-amber-50/40 border border-amber-100/70 rounded-xl p-3 text-center">
+                    <span className="text-[9px] text-amber-700 font-bold font-sans uppercase tracking-wider block">THUÊ BAO CHƯA CẬP NHẬT</span>
+                    <strong className="text-xl font-mono font-black text-amber-800 block mt-0.5">
+                      {formatNumber(mucDtStats.reduce((sum, item) => sum + item.outstandingCount, 0))}
+                    </strong>
+                    <span className="text-[9px] text-slate-400 font-medium">thuê bao còn tồn</span>
+                  </div>
+                  <div className="bg-rose-50/40 border border-rose-100/70 rounded-xl p-3 text-center">
+                    <span className="text-[9px] text-rose-700 font-bold font-sans uppercase tracking-wider block">DOANH THU CHƯA CẬP NHẬT</span>
+                    <strong className="text-xl font-mono font-black text-rose-800 block mt-0.5">
+                      {formatNumber(mucDtStats.reduce((sum, item) => sum + item.outstandingRevenue, 0))} đ
+                    </strong>
+                    <span className="text-[9px] text-slate-400 font-medium">chưa ghi nhận doanh thu</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] font-extrabold font-sans">
-                  {Object.entries(groupStats).map(([grp, item]) => {
-                    const rate = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
-                    let color = "#005BAA";
-                    if (grp === 'KHDN') color = "#4f46e5";
-                    else if (grp === 'CMND 9 số') color = "#0891b2";
-                    else if (grp === 'CCCD 12 số') color = "#7c3aed";
-                    else if (grp === 'Sai giấy tờ') color = "#e11d48";
+
+                {/* Level list with dual indicators */}
+                <div className="space-y-3">
+                  {mucDtStats.map((item) => {
+                    const maxOutstandingCount = Math.max(...mucDtStats.map(s => s.outstandingCount), 1);
+                    const maxOutstandingRevenue = Math.max(...mucDtStats.map(s => s.outstandingRevenue), 1);
+                    const countPercent = Math.min((item.outstandingCount / maxOutstandingCount) * 100, 100);
+                    const revenuePercent = Math.min((item.outstandingRevenue / maxOutstandingRevenue) * 100, 100);
                     
                     return (
-                      <span key={grp} className="flex items-center gap-1" style={{ color: color }}>
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                        {grp} ({rate}%)
-                      </span>
+                      <div key={item.level} className="p-3 bg-slate-50/40 hover:bg-slate-50 border border-slate-100/80 rounded-xl transition-all space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-450" />
+                            <span className="font-bold text-slate-800 text-[11px] font-sans">{item.level}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[9px] text-slate-500 font-medium">
+                            <span>
+                              Số lượng tồn: <strong className="text-amber-700 font-black">{formatNumber(item.outstandingCount)}</strong> / {formatNumber(item.totalCount)} TB
+                            </span>
+                            <span>|</span>
+                            <span>
+                              Doanh thu tồn: <strong className="text-rose-700 font-black">{formatNumber(item.outstandingRevenue)}</strong> / {formatNumber(item.totalRevenue)} đ
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                          {/* Count bar */}
+                          <div className="space-y-0.5">
+                            <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                              <span>Tỷ trọng số lượng tồn</span>
+                              <span className="font-mono text-amber-750 font-bold">{Math.round(countPercent)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
+                              <div 
+                                className="h-full bg-linear-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
+                                style={{ width: `${countPercent}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Revenue bar */}
+                          <div className="space-y-0.5">
+                            <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                              <span>Tỷ trọng doanh thu tồn</span>
+                              <span className="font-mono text-rose-750 font-bold">{Math.round(revenuePercent)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
+                              <div 
+                                className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-300"
+                                style={{ width: `${revenuePercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-400 italic mt-3 flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                <span>Số liệu tổng hợp động dựa trên thuê bao chưa cập nhật (IsUpdated = false).</span>
+                <span className="font-bold text-amber-600">Độ ưu tiên rà soát: Trên 200k &gt; 100k-200k</span>
               </div>
             </div>
 
@@ -928,7 +943,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                     Xếp hạng kết quả Đơn vị thực hiện chỉ tiêu
                   </span>
                   
-                  <div className="space-y-1.5 max-h-[290px] overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-[480px] overflow-y-auto pr-1">
                     {quickEmulationRanking.length > 0 ? (
                       quickEmulationRanking.slice(0, 9).map((u, idx) => {
                         const rankNum = idx + 1;
