@@ -144,7 +144,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
     return num.toLocaleString('vi-VN');
   };
 
-  // Filter out records belonging to "Đơn vị chưa xác định / Phát sinh ngoài tập"
+  // Filter out records belonging to "Đơn vị chưa xác định / Phát sinh ngoài tập" and normalize Muc_DT
   const dashboardRecords = records.filter(r => {
     const code = (r.Ma_donvi || 'N/A').trim().toUpperCase();
     const name = (r.Ten_donvi || 'Đơn vị chưa xác định / Phát sinh ngoài tập').trim().toLowerCase();
@@ -154,6 +154,22 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
       name.includes('chưa xác định') || 
       name.includes('phát sinh ngoài tập');
     return !isUnidentified;
+  }).map(r => {
+    const dthu = r.Dthu_T4 ? Number(r.Dthu_T4) : 0;
+    let muc_dt = "Từ 5K trở xuống";
+    if (dthu >= 150000) {
+      muc_dt = "Từ 150K trở lên";
+    } else if (dthu >= 90000) {
+      muc_dt = "Từ 90K đến 150K";
+    } else if (dthu >= 50000) {
+      muc_dt = "Từ 50K đến 90K";
+    } else if (dthu >= 5000) {
+      muc_dt = "Từ 5K đến 50K";
+    }
+    return {
+      ...r,
+      Muc_DT: muc_dt
+    };
   });
 
   // -----------------------------------------------------------------
@@ -334,8 +350,14 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
         .filter(Boolean)
     )
   );
-  // Sort them logically: Dưới 50k -> 50k - 100k -> 100k - 200k -> Trên 200k
-  const standardMucDtOrder = ["Dưới 50k", "50k - 100k", "100k - 200k", "Trên 200k"];
+  // Sort them logically: Từ 150K trở lên -> Từ 90K đến 150K -> Từ 50K đến 90K -> Từ 5K đến 50K -> Từ 5K trở xuống
+  const standardMucDtOrder = [
+    "Từ 150K trở lên",
+    "Từ 90K đến 150K",
+    "Từ 50K đến 90K",
+    "Từ 5K đến 50K",
+    "Từ 5K trở xuống"
+  ];
   allMucDtValues.sort((a: string, b: string) => {
     const idxA = standardMucDtOrder.indexOf(a);
     const idxB = standardMucDtOrder.indexOf(b);
