@@ -391,6 +391,54 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
   });
 
   // -----------------------------------------------------------------
+  // LOAI_TB (SUBSCRIBER TYPE) OUTSTANDING STATISTICS (PROVINCE & BY UNIT)
+  // -----------------------------------------------------------------
+  // Get all distinct subscriber types, e.g. "Di động", "MyTV", "Khác", etc.
+  const allLoaiTbTypes: string[] = Array.from(
+    new Set(
+      dashboardRecords
+        .map(r => String(r.Loai_TB || "Khác").trim())
+        .filter(Boolean)
+    )
+  ).map(v => String(v)).sort((a: string, b: string) => a.localeCompare(b, 'vi'));
+
+  const provinceTotalRemaining = dashboardRecords.filter(r => !r.IsUpdated).length;
+
+  // Calculate province level stats for each type
+  const provinceLoaiTbStats = allLoaiTbTypes.map(type => {
+    const totalRecords = dashboardRecords.filter(r => String(r.Loai_TB || "Khác").trim() === type);
+    const outstandingRecords = totalRecords.filter(r => !r.IsUpdated);
+    const total = totalRecords.length;
+    const remaining = outstandingRecords.length;
+    const remainingRevenue = outstandingRecords.reduce((sum, r) => sum + (r.Dthu_T4 ? Number(r.Dthu_T4) : 0), 0);
+    const rate = provinceTotalRemaining > 0 ? Math.round((remaining / provinceTotalRemaining) * 100) : 0;
+    return { type, total, remaining, remainingRevenue, rate };
+  });
+
+  // Calculate unit level stats for each type
+  const unitLoaiTbStats = unitList.map(unit => {
+    const unitTotalRemaining = dashboardRecords.filter(r => (r.Ma_donvi || '').trim() === unit.code && !r.IsUpdated).length;
+
+    const stats = allLoaiTbTypes.map(type => {
+      const totalRecords = dashboardRecords.filter(r => 
+        (r.Ma_donvi || '').trim() === unit.code && String(r.Loai_TB || "Khác").trim() === type
+      );
+      const outstandingRecords = totalRecords.filter(r => !r.IsUpdated);
+      const total = totalRecords.length;
+      const remaining = outstandingRecords.length;
+      const remainingRevenue = outstandingRecords.reduce((sum, r) => sum + (r.Dthu_T4 ? Number(r.Dthu_T4) : 0), 0);
+      const rate = unitTotalRemaining > 0 ? Math.round((remaining / unitTotalRemaining) * 100) : 0;
+      return { type, total, remaining, remainingRevenue, rate };
+    });
+    return {
+      code: unit.code,
+      name: unit.name,
+      unitTotalRemaining,
+      stats
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+  // -----------------------------------------------------------------
   // DAILY PERFORMANCE COMPUTATION (BY DATE & UNIT)
   // -----------------------------------------------------------------
   const activeUpdatedRecords = dashboardRecords.filter(r => r.IsUpdated && r.Ngay_CN !== null && r.Ngay_CN !== undefined && String(r.Ngay_CN).trim() !== '');
@@ -1602,6 +1650,93 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             <div className="bg-slate-50 border-t border-slate-150 p-3.5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 font-bold font-sans">
               <span>Đang hiển thị {sortedUnits.length} Đơn vị hoạt động có thuê bao bàn giao</span>
               <span className="font-mono text-[10px] text-[#005BAA]">ĐỒNG BỘ DỮ LIỆU ĐÁM MÂY D1 CHUẨN XÁC</span>
+            </div>
+          </div>
+
+          {/* PHÂN TÍCH TỶ LỆ TỒN THEO LOẠI THUÊ BAO */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden p-5 space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5 mb-4">
+              <CheckCircle2 className="w-4 h-4 text-[#005BAA]" />
+              <div>
+                <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                  Phân tích tỷ lệ tồn thuê bao theo Loại thuê bao (Loai_TB)
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Thống kê tỷ lệ tồn đọng chưa rà soát (IsUpdated = false) phân rã theo từng Loại thuê bao của toàn tỉnh và từng đơn vị.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse font-sans text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                    <th className="py-2.5 px-3 text-left">Đơn vị phụ trách</th>
+                    {allLoaiTbTypes.map(type => (
+                      <th key={type} className="py-2.5 px-3 text-center bg-slate-100/30">
+                        {type}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150/60 text-slate-700">
+                  {/* Toàn tỉnh Row */}
+                  <tr className="bg-amber-50/40 font-bold hover:bg-amber-50/60 transition-colors">
+                    <td className="py-3 px-3 text-slate-900 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      TOÀN TỈNH QUẢNG NINH
+                    </td>
+                    {provinceLoaiTbStats.map(stat => (
+                      <td key={stat.type} className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="text-amber-850 font-mono font-black text-xs">{stat.rate}%</span>
+                          <span className="text-[9px] text-slate-450 font-mono font-medium block mt-0.5">
+                            ({formatNumber(stat.remaining)} / {formatNumber(provinceTotalRemaining)} TB)
+                          </span>
+                          <span className="text-[9px] text-rose-700 font-mono font-bold block mt-0.5">
+                            Tồn DThu: {formatNumber(stat.remainingRevenue)}đ
+                          </span>
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Từng Đơn vị Rows */}
+                  {unitLoaiTbStats.map(unitStat => (
+                    <tr key={unitStat.code} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-2.5 px-3 font-semibold text-slate-850">
+                        <div className="font-bold text-slate-800 text-[11px]">{unitStat.name}</div>
+                        <div className="text-[9px] font-mono text-slate-400 mt-0.5 uppercase">Mã đơn vị: {unitStat.code}</div>
+                      </td>
+                      {unitStat.stats.map(stat => {
+                        const cellColor = 
+                          stat.rate >= 40 ? 'text-rose-600 font-extrabold' :
+                          stat.rate >= 20 ? 'text-amber-600' :
+                          stat.rate > 0 ? 'text-emerald-600' : 'text-slate-400';
+                        return (
+                          <td key={stat.type} className="py-2.5 px-3 text-center">
+                            <div className="flex flex-col items-center">
+                              <span className={`font-mono font-bold text-[11px] ${cellColor}`}>
+                                {stat.rate}%
+                              </span>
+                              <span className="text-[9px] text-slate-450 font-mono font-medium block mt-0.5">
+                                ({formatNumber(stat.remaining)} / {formatNumber(unitStat.unitTotalRemaining)} TB)
+                              </span>
+                              <span className="text-[9px] text-rose-600 font-mono font-bold block mt-0.5">
+                                Tồn DThu: {formatNumber(stat.remainingRevenue)}đ
+                              </span>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-2 text-[10px] text-slate-400 italic">
+              * Tỷ lệ tồn được tính bằng: <code>(Số thuê bao chưa cập nhật của Loại TB đó / Tổng số thuê bao chưa cập nhật của tất cả các Loại TB) * 100%</code>. Chỉ số này phản ánh cơ cấu tỷ trọng lượng công việc tồn đọng cần tập trung rà soát.
             </div>
           </div>
         </>
