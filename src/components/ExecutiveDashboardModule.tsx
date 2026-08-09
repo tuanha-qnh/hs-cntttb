@@ -888,22 +888,22 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
           {/* VISUAL CHART AREA COMPARE */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Replaced redundant chart with Muc_DT outstanding quantity & revenue evaluation */}
-            <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-8 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between w-full max-w-full overflow-hidden">
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 mb-4">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-500" />
-                    <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                    <h3 className="font-bold text-slate-800 text-xs sm:text-sm font-sans uppercase tracking-wider truncate">
                       Phân tích Thuê bao & Doanh thu Còn tồn theo Mức Doanh thu
                     </h3>
                   </div>
                   
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-slate-450 font-bold font-sans uppercase whitespace-nowrap">Phạm vi:</span>
+                    <span className="text-xs text-slate-450 font-bold font-sans uppercase whitespace-nowrap">Phạm vi:</span>
                     <select 
                       value={selectedMucDtUnit} 
                       onChange={(e) => setSelectedMucDtUnit(e.target.value)}
-                      className="text-[11px] bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-sans font-medium max-w-[170px] sm:max-w-xs truncate"
+                      className="text-xs bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-sans font-medium max-w-[160px] sm:max-w-xs truncate"
                     >
                       <option value="all">Toàn tỉnh Quảng Ninh</option>
                       {unitList.map(u => (
@@ -914,55 +914,55 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 </div>
 
                 {/* Scope outstanding quick statistics cards */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-amber-50/40 border border-amber-100/70 rounded-xl p-3 text-center">
-                    <span className="text-[9px] text-amber-700 font-bold font-sans uppercase tracking-wider block">THUÊ BAO CHƯA CẬP NHẬT</span>
-                    <strong className="text-xl font-mono font-black text-amber-800 block mt-0.5">
+                    <span className="text-xs text-amber-700 font-bold font-sans uppercase tracking-wider block">THUÊ BAO CHƯA CẬP NHẬT</span>
+                    <strong className="text-xl sm:text-2xl font-mono font-black text-amber-800 block mt-0.5">
                       {formatNumber(mucDtStats.reduce((sum, item) => sum + item.outstandingCount, 0))}
                     </strong>
-                    <span className="text-[9px] text-slate-400 font-medium">thuê bao còn tồn</span>
+                    <span className="text-xs text-slate-400 font-medium">thuê bao còn tồn</span>
                   </div>
                   <div className="bg-rose-50/40 border border-rose-100/70 rounded-xl p-3 text-center">
-                    <span className="text-[9px] text-rose-700 font-bold font-sans uppercase tracking-wider block">DOANH THU CHƯA CẬP NHẬT</span>
-                    <strong className="text-xl font-mono font-black text-rose-800 block mt-0.5">
+                    <span className="text-xs text-rose-700 font-bold font-sans uppercase tracking-wider block">DOANH THU CHƯA CẬP NHẬT</span>
+                    <strong className="text-xl sm:text-2xl font-mono font-black text-rose-800 block mt-0.5">
                       {formatNumber(mucDtStats.reduce((sum, item) => sum + item.outstandingRevenue, 0))} đ
                     </strong>
-                    <span className="text-[9px] text-slate-400 font-medium">chưa ghi nhận doanh thu</span>
+                    <span className="text-xs text-slate-400 font-medium">chưa ghi nhận doanh thu</span>
                   </div>
                 </div>
 
                 {/* Level list with dual indicators */}
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {mucDtStats.map((item) => {
                     const countPercent = item.totalCount > 0 ? (item.outstandingCount / item.totalCount) * 100 : 0;
                     const revenuePercent = item.totalRevenue > 0 ? (item.outstandingRevenue / item.totalRevenue) * 100 : 0;
                     
                     return (
                       <div key={item.level} className="p-3 bg-slate-50/40 hover:bg-slate-50 border border-slate-100/80 rounded-xl transition-all space-y-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-450" />
-                            <span className="font-bold text-slate-800 text-[11px] font-sans">{item.level}</span>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="w-2 h-2 rounded-full bg-slate-450 shrink-0" />
+                            <span className="font-bold text-slate-800 text-xs sm:text-sm font-sans">{item.level}</span>
                           </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[9px] text-slate-500 font-medium">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs text-slate-600 font-medium">
                             <span>
                               Số lượng tồn: <strong className="text-amber-700 font-black">{formatNumber(item.outstandingCount)}</strong> / {formatNumber(item.totalCount)} TB
                             </span>
-                            <span>|</span>
+                            <span className="text-slate-300">|</span>
                             <span>
                               Doanh thu tồn: <strong className="text-rose-700 font-black">{formatNumber(item.outstandingRevenue)}</strong> / {formatNumber(item.totalRevenue)} đ
                             </span>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-0.5">
                           {/* Count bar */}
-                          <div className="space-y-0.5">
-                            <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
                               <span>Tỷ lệ tồn thuê bao</span>
-                              <span className="font-mono text-amber-750 font-bold">{Math.round(countPercent)}%</span>
+                              <span className="font-mono text-amber-750 font-bold text-xs">{Math.round(countPercent)}%</span>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
                               <div 
                                 className="h-full bg-linear-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
                                 style={{ width: `${countPercent}%` }}
@@ -971,12 +971,12 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           </div>
 
                           {/* Revenue bar */}
-                          <div className="space-y-0.5">
-                            <div className="flex justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
                               <span>Tỷ lệ tồn doanh thu</span>
-                              <span className="font-mono text-rose-750 font-bold">{Math.round(revenuePercent)}%</span>
+                              <span className="font-mono text-rose-750 font-bold text-xs">{Math.round(revenuePercent)}%</span>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
                               <div 
                                 className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-300"
                                 style={{ width: `${revenuePercent}%` }}
@@ -1472,8 +1472,8 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             {/* Table Controller Header bar */}
             <div className="bg-slate-50/80 border-b border-slate-200/60 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-slate-500" />
-                <h4 className="font-bold text-xs text-slate-800 uppercase tracking-widest">
+                <Building2 className="w-5 h-5 text-slate-500" />
+                <h4 className="font-bold text-sm text-slate-800 uppercase tracking-widest">
                   Chi tiết tiến độ thực hiện của từng Đơn Vị phụ trách
                 </h4>
               </div>
@@ -1486,15 +1486,15 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                   placeholder="Tìm theo Mã hoặc Tên Đơn vị..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#005BAA] w-48 font-sans"
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 focus:outline-none focus:border-[#005BAA] w-52 font-sans"
                 />
 
                 {/* Filter Group filter */}
-                <span className="text-[11px] text-slate-400 font-sans flex items-center gap-1"><Filter className="w-3 h-3" /> Lọc</span>
+                <span className="text-xs text-slate-500 font-sans flex items-center gap-1"><Filter className="w-3.5 h-3.5" /> Lọc</span>
                 <select
                   value={selectedGroupFilter}
                   onChange={(e: any) => setSelectedGroupFilter(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-650 focus:outline-none"
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-650 focus:outline-none font-sans"
                 >
                   <option value="all">Tất cả nhóm</option>
                   <option value="KHDN">Có khách KHDN</option>
@@ -1506,7 +1506,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 <select
                   value={minTargetFilter}
                   onChange={(e) => setMinTargetFilter(Number(e.target.value))}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-650 focus:outline-none"
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-650 focus:outline-none font-sans"
                 >
                   <option value="0">Mọi quy mô</option>
                   <option value="5">Chỉ tiêu &ge; 5</option>
@@ -1518,9 +1518,9 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 <button 
                   onClick={handleExportCSV}
                   disabled={sortedUnits.length === 0}
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-[#005BAA] hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all cursor-pointer disabled:opacity-40"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-[#005BAA] hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all cursor-pointer disabled:opacity-40"
                 >
-                  <Download className="w-3 h-3" />
+                  <Download className="w-3.5 h-3.5" />
                   Xuất Excel/CSV
                 </button>
               </div>
@@ -1528,9 +1528,9 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
 
             {/* Main Table responsive scroll container */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse font-sans text-xs">
+              <table className="w-full text-left border-collapse font-sans text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200/80">
+                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-xs border-b border-slate-200/80">
                     <th className="py-3 px-4 w-12 text-center">STT</th>
                     <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('name')}>
                       Đơn vị {sortField === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
@@ -1559,24 +1559,24 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                       
                       return (
                         <tr key={u.code} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3 px-4 font-mono text-center text-slate-400">{index + 1}</td>
+                          <td className="py-3 px-4 font-mono text-center text-slate-400 text-xs">{index + 1}</td>
                           <td className="py-3 px-3">
-                            <div className="font-semibold text-slate-800">{u.name}</div>
-                            <div className="text-[10px] font-mono text-[#005BAA] font-bold mt-0.5 uppercase">Mã đơn vị: {u.code}</div>
+                            <div className="font-semibold text-slate-800 text-sm">{u.name}</div>
+                            <div className="text-xs font-mono text-[#005BAA] font-bold mt-0.5 uppercase">Mã đơn vị: {u.code}</div>
                           </td>
-                          <td className="py-3 px-2 text-center font-bold font-mono text-slate-800 text-xs">
+                          <td className="py-3 px-2 text-center font-bold font-mono text-slate-800 text-sm">
                             {formatNumber(u.total)}
                           </td>
-                          <td className="py-3 px-2 text-center font-bold font-mono text-emerald-600 text-xs">
+                          <td className="py-3 px-2 text-center font-bold font-mono text-emerald-600 text-sm">
                             {formatNumber(u.completed)}
                           </td>
-                          <td className="py-3 px-2 text-center font-bold font-mono text-amber-600 text-xs">
+                          <td className="py-3 px-2 text-center font-bold font-mono text-amber-600 text-sm">
                             {formatNumber(u.remaining)}
                           </td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold font-mono text-slate-800 w-9 text-right">{u.rate}%</span>
-                              <div className="w-16 h-1.5 bg-slate-100/90 rounded-full overflow-hidden border border-slate-200/20 shrink-0 hidden sm:block">
+                              <span className="font-bold font-mono text-slate-800 w-10 text-right text-sm">{u.rate}%</span>
+                              <div className="w-16 h-2 bg-slate-100/90 rounded-full overflow-hidden border border-slate-200/20 shrink-0 hidden sm:block">
                                 <div 
                                   className={`h-full rounded-full ${
                                     u.rate >= 80 ? 'bg-emerald-500' :
@@ -1591,32 +1591,32 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           
                           {/* KHDN */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-indigo-50/10">
-                            <span className="font-mono">{formatNumber(u.groups['KHDN'].completed)} / <b>{formatNumber(u.groups['KHDN'].total)}</b></span>
-                            <span className="text-[9px] text-[#4f46e5] font-semibold block">
+                            <span className="font-mono text-sm">{formatNumber(u.groups['KHDN'].completed)} / <b>{formatNumber(u.groups['KHDN'].total)}</b></span>
+                            <span className="text-[11px] text-[#4f46e5] font-semibold block">
                               {u.groups['KHDN'].total > 0 ? `${Math.round((u.groups['KHDN'].completed / u.groups['KHDN'].total)*100)}%` : '-'}
                             </span>
                           </td>
                           
                           {/* CMND 9 Số */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-cyan-50/10">
-                            <span className="font-mono">{formatNumber(u.groups['CMND 9 số'].completed)} / <b>{formatNumber(u.groups['CMND 9 số'].total)}</b></span>
-                            <span className="text-[9px] text-cyan-500 font-semibold block">
+                            <span className="font-mono text-sm">{formatNumber(u.groups['CMND 9 số'].completed)} / <b>{formatNumber(u.groups['CMND 9 số'].total)}</b></span>
+                            <span className="text-[11px] text-cyan-500 font-semibold block">
                               {u.groups['CMND 9 số'].total > 0 ? `${Math.round((u.groups['CMND 9 số'].completed / u.groups['CMND 9 số'].total)*100)}%` : '-'}
                             </span>
                           </td>
                           
                           {/* CCCD 12 Số */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-purple-50/10">
-                            <span className="font-mono">{formatNumber(u.groups['CCCD 12 số'].completed)} / <b>{formatNumber(u.groups['CCCD 12 số'].total)}</b></span>
-                            <span className="text-[9px] text-purple-500 font-semibold block">
+                            <span className="font-mono text-sm">{formatNumber(u.groups['CCCD 12 số'].completed)} / <b>{formatNumber(u.groups['CCCD 12 số'].total)}</b></span>
+                            <span className="text-[11px] text-purple-500 font-semibold block">
                               {u.groups['CCCD 12 số'].total > 0 ? `${Math.round((u.groups['CCCD 12 số'].completed / u.groups['CCCD 12 số'].total)*100)}%` : '-'}
                             </span>
                           </td>
                           
                           {/* Sai Giấy Tờ */}
                           <td className="py-3 px-3 text-center hidden md:table-cell bg-rose-50/10">
-                            <span className="font-mono">{formatNumber(u.groups['Sai giấy tờ'].completed)} / <b>{formatNumber(u.groups['Sai giấy tờ'].total)}</b></span>
-                            <span className="text-[9px] text-rose-500 font-semibold block">
+                            <span className="font-mono text-sm">{formatNumber(u.groups['Sai giấy tờ'].completed)} / <b>{formatNumber(u.groups['Sai giấy tờ'].total)}</b></span>
+                            <span className="text-[11px] text-rose-500 font-semibold block">
                               {u.groups['Sai giấy tờ'].total > 0 ? `${Math.round((u.groups['Sai giấy tờ'].completed / u.groups['Sai giấy tờ'].total)*100)}%` : '-'}
                             </span>
                           </td>
@@ -1624,10 +1624,10 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                           {/* Evaluation comment badge */}
                           <td className="py-3 px-4 text-center">
                             <div className="flex flex-col items-center gap-1">
-                              <span className={`text-[9px] font-black border px-2 py-0.5 rounded-full ${evalBadge.colorClass}`}>
+                              <span className={`text-[11px] font-black border px-2.5 py-0.5 rounded-full ${evalBadge.colorClass}`}>
                                 {evalBadge.label}
                               </span>
-                              <span className="text-[9px] text-slate-400 block max-w-[150px] leading-tight truncate-two-lines text-center">
+                              <span className="text-[11px] text-slate-400 block max-w-[160px] leading-tight truncate-two-lines text-center">
                                 {evalBadge.detail}
                               </span>
                             </div>
@@ -1637,7 +1637,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                     })
                   ) : (
                     <tr>
-                      <td colSpan={11} className="py-12 text-center text-slate-400 font-sans italic">
+                      <td colSpan={11} className="py-12 text-center text-slate-400 font-sans italic text-sm">
                         Không tìm thấy đơn vị nào khớp với điều kiện lọc hiện tại.
                       </td>
                     </tr>
@@ -1647,30 +1647,30 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
             </div>
 
             {/* Table Footer info bar */}
-            <div className="bg-slate-50 border-t border-slate-150 p-3.5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 font-bold font-sans">
+            <div className="bg-slate-50 border-t border-slate-150 p-3.5 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 font-bold font-sans">
               <span>Đang hiển thị {sortedUnits.length} Đơn vị hoạt động có thuê bao bàn giao</span>
-              <span className="font-mono text-[10px] text-[#005BAA]">ĐỒNG BỘ DỮ LIỆU ĐÁM MÂY D1 CHUẨN XÁC</span>
+              <span className="font-mono text-xs text-[#005BAA]">ĐỒNG BỘ DỮ LIỆU ĐÁM MÂY D1 CHUẨN XÁC</span>
             </div>
           </div>
 
           {/* PHÂN TÍCH TỶ LỆ TỒN THEO LOẠI THUÊ BAO */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden p-5 space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5 mb-4">
-              <CheckCircle2 className="w-4 h-4 text-[#005BAA]" />
+              <CheckCircle2 className="w-5 h-5 text-[#005BAA]" />
               <div>
-                <h3 className="font-bold text-slate-800 text-xs font-sans uppercase tracking-wider">
+                <h3 className="font-bold text-slate-800 text-sm font-sans uppercase tracking-wider">
                   Phân tích tỷ lệ tồn thuê bao theo Loại thuê bao (Loai_TB)
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Thống kê tỷ lệ tồn đọng chưa rà soát (IsUpdated = false) phân rã theo từng Loại thuê bao của toàn tỉnh và từng đơn vị.
                 </p>
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse font-sans text-xs">
+              <table className="w-full text-left border-collapse font-sans text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                     <th className="py-2.5 px-3 text-left">Đơn vị phụ trách</th>
                     {allLoaiTbTypes.map(type => (
                       <th key={type} className="py-2.5 px-3 text-center bg-slate-100/30">
@@ -1682,18 +1682,18 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                 <tbody className="divide-y divide-slate-150/60 text-slate-700">
                   {/* Toàn tỉnh Row */}
                   <tr className="bg-amber-50/40 font-bold hover:bg-amber-50/60 transition-colors">
-                    <td className="py-3 px-3 text-slate-900 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <td className="py-3 px-3 text-slate-900 text-sm flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                       TOÀN TỈNH QUẢNG NINH
                     </td>
                     {provinceLoaiTbStats.map(stat => (
                       <td key={stat.type} className="py-3 px-3 text-center">
                         <div className="flex flex-col items-center">
-                          <span className="text-amber-850 font-mono font-black text-xs">{stat.rate}%</span>
-                          <span className="text-[9px] text-slate-450 font-mono font-medium block mt-0.5">
+                          <span className="text-amber-850 font-mono font-black text-sm">{stat.rate}%</span>
+                          <span className="text-[11px] text-slate-500 font-mono font-medium block mt-0.5">
                             ({formatNumber(stat.remaining)} / {formatNumber(provinceTotalRemaining)} TB)
                           </span>
-                          <span className="text-[9px] text-rose-700 font-mono font-bold block mt-0.5">
+                          <span className="text-[11px] text-rose-700 font-mono font-bold block mt-0.5">
                             Tồn DThu: {formatNumber(stat.remainingRevenue)}đ
                           </span>
                         </div>
@@ -1705,8 +1705,8 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                   {unitLoaiTbStats.map(unitStat => (
                     <tr key={unitStat.code} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-2.5 px-3 font-semibold text-slate-850">
-                        <div className="font-bold text-slate-800 text-[11px]">{unitStat.name}</div>
-                        <div className="text-[9px] font-mono text-slate-400 mt-0.5 uppercase">Mã đơn vị: {unitStat.code}</div>
+                        <div className="font-bold text-slate-800 text-[13px]">{unitStat.name}</div>
+                        <div className="text-[11px] font-mono text-slate-400 mt-0.5 uppercase">Mã đơn vị: {unitStat.code}</div>
                       </td>
                       {unitStat.stats.map(stat => {
                         const cellColor = 
@@ -1716,13 +1716,13 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
                         return (
                           <td key={stat.type} className="py-2.5 px-3 text-center">
                             <div className="flex flex-col items-center">
-                              <span className={`font-mono font-bold text-[11px] ${cellColor}`}>
+                              <span className={`font-mono font-bold text-[13px] ${cellColor}`}>
                                 {stat.rate}%
                               </span>
-                              <span className="text-[9px] text-slate-450 font-mono font-medium block mt-0.5">
+                              <span className="text-[11px] text-slate-500 font-mono font-medium block mt-0.5">
                                 ({formatNumber(stat.remaining)} / {formatNumber(unitStat.unitTotalRemaining)} TB)
                               </span>
-                              <span className="text-[9px] text-rose-600 font-mono font-bold block mt-0.5">
+                              <span className="text-[11px] text-rose-600 font-mono font-bold block mt-0.5">
                                 Tồn DThu: {formatNumber(stat.remainingRevenue)}đ
                               </span>
                             </div>
@@ -1735,7 +1735,7 @@ export default function ExecutiveDashboardModule({ cloudflareConfig }: Executive
               </table>
             </div>
 
-            <div className="pt-2 text-[10px] text-slate-400 italic">
+            <div className="pt-2 text-xs text-slate-400 italic">
               * Tỷ lệ tồn được tính bằng: <code>(Số thuê bao chưa cập nhật của Loại TB đó / Tổng số thuê bao chưa cập nhật của tất cả các Loại TB) * 100%</code>. Chỉ số này phản ánh cơ cấu tỷ trọng lượng công việc tồn đọng cần tập trung rà soát.
             </div>
           </div>
